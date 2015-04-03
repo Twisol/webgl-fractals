@@ -11,6 +11,7 @@ uniform float u_zoom;
 // Color control
 uniform float u_brightness;
 uniform vec3 u_color;
+uniform float u_root_radius;
 
 // Point transformation and tolerance
 uniform vec2 u_a;
@@ -53,13 +54,13 @@ void main() {
   float tolerance = u_eps*u_eps;
   vec2 p = v_vertex / u_zoom + u_center;
 
-  // // Highlight the roots
-  // for (int i = 0; i < NUMROOTS; i += 1) {
-  //   if (dot(p - u_roots[i], p - u_roots[i]) < 0.01) {
-  //     gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
-  //     return;
-  //   }
-  // }
+  // Highlight the roots
+  for (int i = 0; i < NUMROOTS; i += 1) {
+    if (dot(p - u_roots[i], p - u_roots[i]) < u_root_radius*u_root_radius) {
+      gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
+      return;
+    }
+  }
 
   float b = 0.0;
   for (int i = 0; i < ITERATIONS; i += 1) {

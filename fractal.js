@@ -47,32 +47,36 @@
     var vertexShaderSource = fs.readFileSync("frac_vertex.glsl", {encoding: "utf-8"});
 
     fragmentShaderSource = fragmentShaderSource.replace(/\{\{EXPONENT\}\}/g, ""+exponent).replace(/\{\{ITERATIONS\}\}/g, ""+iterations).replace(/\{\{NUMROOTS\}\}/g, ""+roots.length);
-    console.log(fragmentShaderSource);
 
     var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fragmentShader, fragmentShaderSource);
     gl.compileShader(fragmentShader);
-    console.log(gl.getShaderInfoLog(fragmentShader));
+    if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+      console.log(gl.getShaderInfoLog(fragmentShader));
+    }
 
     var vertexShader = gl.createShader(gl.VERTEX_SHADER);
     gl.shaderSource(vertexShader, vertexShaderSource);
     gl.compileShader(vertexShader);
-    console.log(gl.getShaderInfoLog(vertexShader));
+    if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+      console.log(gl.getShaderInfoLog(vertexShader));
+    }
 
     var program = gl.createProgram();
     gl.attachShader(program, fragmentShader);
     gl.attachShader(program, vertexShader);
     gl.linkProgram(program);
-    gl.useProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.log(gl.getProgramInfoLog(program));
+    }
 
     return program;
   }
 
   // Create a canvas
-  var canvas = document.createElement("canvas");
+  var canvas = document.getElementById("canvas");
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  document.body.appendChild(canvas);
 
   // Get the WebGL context
   var gl = canvas.getContext("webgl", {
@@ -144,6 +148,7 @@
     var zoomLocation = gl.getUniformLocation(shaderProgram, "u_zoom");
     var brightnessLocation = gl.getUniformLocation(shaderProgram, "u_brightness");
     var colorLocation = gl.getUniformLocation(shaderProgram, "u_color");
+    var rootRadiusLocation = gl.getUniformLocation(shaderProgram, "u_root_radius");
     var aLocation = gl.getUniformLocation(shaderProgram, "u_a");
     var epsLocation = gl.getUniformLocation(shaderProgram, "u_eps");
 
@@ -157,6 +162,7 @@
     gl.uniform1f(zoomLocation, this.settings.zoom);
     gl.uniform1f(brightnessLocation, this.settings.brightness);
     gl.uniform3fv(colorLocation, this.settings.color);
+    gl.uniform1f(rootRadiusLocation, this.settings.root_radius);
     gl.uniform2fv(aLocation, this.settings.a);
     gl.uniform1f(epsLocation, this.settings.eps);
 
