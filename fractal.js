@@ -84,7 +84,7 @@
     preserveDrawingBuffer: true  // enable saving the canvas as an image.
   });
 
-  // Load the paddle geometry into GPU memory
+  // Load the surface geometry into GPU memory
   var buffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, Models["quad"], gl.STATIC_DRAW);
