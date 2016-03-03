@@ -43,8 +43,8 @@
   }
 
   function makeShaderProgram(gl, roots, exponent, iterations) {
-    var fragmentShaderSource = fs.readFileSync("frac_fragment.glsl", {encoding: "utf-8"});
-    var vertexShaderSource = fs.readFileSync("frac_vertex.glsl", {encoding: "utf-8"});
+    var fragmentShaderSource = fs.readFileSync("public/shaders/frac_fragment.glsl", {encoding: "utf-8"});
+    var vertexShaderSource = fs.readFileSync("public/shaders/frac_vertex.glsl", {encoding: "utf-8"});
 
     fragmentShaderSource = fragmentShaderSource.replace(/\{\{EXPONENT\}\}/g, ""+exponent).replace(/\{\{ITERATIONS\}\}/g, ""+iterations).replace(/\{\{NUMROOTS\}\}/g, ""+roots.length);
 
@@ -89,7 +89,7 @@
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, Models["quad"], gl.STATIC_DRAW);
 
-  var settings = JSON.parse(fs.readFileSync("parameters.json"));
+  var settings = JSON.parse(fs.readFileSync("public/parameters.json"));
   var shaderProgram = makeShaderProgram(gl, settings.roots, settings.exponent, settings.iterations);
 
   function Fractal(gl, model, settings) {
@@ -98,7 +98,7 @@
 
     this.redraw = true;
     this.settings = settings;
-    this.lastset = fs.statSync("parameters.json").mtime
+    this.lastset = fs.statSync("public/parameters.json").mtime
 
     this.keys = {
       up: 0,
@@ -111,9 +111,9 @@
   }
 
   Fractal.prototype.update = function() {
-    if (fs.statSync("parameters.json").mtime > this.lastset) {
-      this.settings = JSON.parse(fs.readFileSync("parameters.json"));
-      this.lastset = fs.statSync("parameters.json").mtime;
+    if (fs.statSync("public/parameters.json").mtime > this.lastset) {
+      this.settings = JSON.parse(fs.readFileSync("public/parameters.json"));
+      this.lastset = fs.statSync("public/parameters.json").mtime;
       this.redraw = true;
     }
     if (!this.redraw) {

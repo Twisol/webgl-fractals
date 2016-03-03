@@ -1,6 +1,6 @@
 {
   "name": "webgl-fractals",
-  "main": "index.html",
+  "main": "public/index.html",
   "window": {
     "toolbar": true,
     "width": 1024,
