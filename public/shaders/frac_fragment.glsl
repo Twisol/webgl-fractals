@@ -17,10 +17,8 @@ uniform float u_root_radius;
 uniform vec2 u_a;
 uniform float u_eps;
 
-// Fractal parameters
-uniform vec2 u_roots[NUMROOTS+1];
-uniform vec2 u_poly[NUMROOTS+1];
-uniform vec2 u_deriv[NUMROOTS+1];
+// Polynomial roots
+uniform vec2 u_roots[NUMROOTS];
 
 // Current point
 varying vec2 v_vertex;
@@ -38,16 +36,11 @@ vec2 compdiv(const vec2 a, const vec2 b){
 
 // Computes z - a*poly(z)/deriv(z)
 vec2 approximation(const vec2 z) {
-  vec2 zx = vec2(1, 0);  // Collects successive powers of z
-  vec2 numerator = vec2(0, 0);  // Collects the polynomial's value
-  vec2 denominator = vec2(0, 0);  // Collects the derivative's value
-  for (int i = 0; i < NUMROOTS+1; i += 1) {
-    numerator += compmul(u_poly[i], zx);
-    denominator += compmul(u_deriv[i], zx);
-    zx = compmul(zx, z);
+  vec2 acc = vec2(0, 0);
+  for (int i = 0; i < NUMROOTS; i += 1) {
+    acc += compdiv(vec2(1, 0), z - u_roots[i]);
   }
-
-  return z - compmul(u_a, compdiv(numerator, denominator));
+  return z - compmul(u_a, compdiv(vec2(1, 0), acc));
 }
 
 void main() {

@@ -7,38 +7,6 @@ let Models = {
   ]),
 };
 
-function compadd(a, b) {
-  return [a[0] + b[0], a[1] + b[1]];
-}
-
-function compmul(a, b) {
-  return [a[0]*b[0] - a[1]*b[1], a[0]*b[1] + a[1]*b[0]];
-}
-
-// Generates a complex polynomial from its roots
-function polyroots(roots) {
-  var poly = [[1, 0]];
-  poly[-1] = [0, 0]; // magic index makes for a cleaner multiplication loop
-  for (var i = 0; i < roots.length; ++i) {
-    poly.push([0, 0]);
-    for (var j = i+1; j >= 0; --j) {
-      poly[j] = compadd(poly[j-1], compmul(poly[j], compmul(roots[i], [-1, 0])));
-    }
-  }
-
-  return poly;
-}
-
-// Takes the derivative of a complex polynomial
-function polyD(poly) {
-  let D = [];
-  for (let i = 1; i < poly.length; ++i) {
-    D.push(compmul([i, 0], poly[i]));
-  }
-  D.push([0, 0]);
-  return D;
-}
-
 
 function xhrContent(xhr) {
   return xhr.response;
@@ -100,8 +68,6 @@ Fractal.prototype.draw = function() {
   let vertexLocation = gl.getAttribLocation(shaderProgram, "a_vertex");
   let aspectLocation = gl.getUniformLocation(shaderProgram, "u_aspect");
 
-  let polyLocation = gl.getUniformLocation(shaderProgram, "u_poly");
-  let derivLocation = gl.getUniformLocation(shaderProgram, "u_deriv");
   let rootsLocation = gl.getUniformLocation(shaderProgram, "u_roots");
   let centerLocation = gl.getUniformLocation(shaderProgram, "u_center");
   let zoomLocation = gl.getUniformLocation(shaderProgram, "u_zoom");
@@ -111,12 +77,7 @@ Fractal.prototype.draw = function() {
   let aLocation = gl.getUniformLocation(shaderProgram, "u_a");
   let epsLocation = gl.getUniformLocation(shaderProgram, "u_eps");
 
-  let poly = polyroots(this.settings.roots);
-  let deriv = polyD(poly);
-
   gl.uniform2fv(rootsLocation, Array.prototype.concat.apply([], this.settings.roots));
-  gl.uniform2fv(polyLocation, Array.prototype.concat.apply([], poly));
-  gl.uniform2fv(derivLocation, Array.prototype.concat.apply([], deriv));
   gl.uniform2fv(centerLocation, this.settings.center);
   gl.uniform1f(zoomLocation, this.settings.zoom);
   gl.uniform1f(brightnessLocation, this.settings.brightness);
