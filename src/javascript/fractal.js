@@ -48,6 +48,7 @@ function Fractal(gl, model, settings, shaderProgram) {
   this.settings = settings;
   this.shaderProgram = shaderProgram;
 
+  this.forcedRedraw = false;
   this.keys = {
     up: 0,
     down: 0,
@@ -57,6 +58,26 @@ function Fractal(gl, model, settings, shaderProgram) {
     zoomout: 0
   };
 }
+
+Fractal.prototype.update = function() {
+  let shouldRedraw = this.forcedRedraw;
+  this.forcedRedraw = false;
+
+  if (this.keys.up - this.keys.down != 0) {
+    this.settings.center[1] += (this.keys.up - this.keys.down)/(30*this.settings.zoom);
+    shouldRedraw = true;
+  }
+  if (this.keys.right - this.keys.left != 0) {
+    this.settings.center[0] += (this.keys.right - this.keys.left)/(30*this.settings.zoom);
+    shouldRedraw = true;
+  }
+  if (this.keys.zoomin - this.keys.zoomout != 0) {
+    this.settings.zoom *= Math.pow(0.990, this.keys.zoomin - this.keys.zoomout);
+    shouldRedraw = true;
+  }
+
+  return shouldRedraw;
+};
 
 Fractal.prototype.draw = function() {
   let gl = this.gl;
@@ -96,15 +117,8 @@ Fractal.prototype.draw = function() {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-Fractal.prototype.set = function(prop, value) {
-  this.settings[prop] = value;
-};
-
-window.saveImage = function(filename) {
-  // fs.writeFileSync(filename, new Buffer(canvas.toDataURL("image/png").replace(/^data:image\/\w+;base64,/, ""), "base64"));
-}
-
-window.onkeydown = function(ev) {
+canvas.tabIndex = 1;
+canvas.addEventListener("keydown", function(ev) {
   switch (ev.keyCode) {
   case 65: world.keys.left = 1; break;
   case 68: world.keys.right = 1; break;
@@ -113,8 +127,8 @@ window.onkeydown = function(ev) {
   case 16: world.keys.zoomin = 1; break;
   case 32: world.keys.zoomout = 1; break;
   }
-}
-window.onkeyup = function(ev) {
+});
+canvas.addEventListener("keyup", function(ev) {
   switch (ev.keyCode) {
   case 65: world.keys.left = 0; break;
   case 68: world.keys.right = 0; break;
@@ -123,17 +137,24 @@ window.onkeyup = function(ev) {
   case 16: world.keys.zoomin = 0; break;
   case 32: world.keys.zoomout = 0; break;
   }
-}
+});
+canvas.addEventListener("click", function(ev) {
+  canvas.focus();
+});
 
-//$.fetch("/catalog.json", {responseType: "json"}).then(xhrContent).then(function(catalog) {
-//  var settings = Object.freeze(catalog["metro"]);
+// $.fetch("/catalog.json", {responseType: "json"}).then(xhrContent).then(function(catalog) {
+//  var settings = catalog["metro"];
 $.fetch("/parameters.json", {responseType: "json"}).then(xhrContent).then(function(settings) {
+  // Clone the settings object so we can modify it
+  settings = JSON.parse(JSON.stringify(settings));
+  $("#parameters").value = JSON.stringify(settings, null, 2);
+
   $.fetch("/shaders/frac_fragment.glsl").then(xhrContent).then(function(fragmentShaderSource) {
     $.fetch("/shaders/frac_vertex.glsl").then(xhrContent).then(function(vertexShaderSource) {
       // Create a canvas
       let canvas = document.getElementById("canvas");
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      // canvas.width = window.innerWidth;
+      // canvas.height = window.innerHeight;
 
       // Get the WebGL context
       let gl = canvas.getContext("webgl", {
@@ -152,9 +173,34 @@ $.fetch("/parameters.json", {responseType: "json"}).then(xhrContent).then(functi
       let world = new Fractal(gl, buffer, settings, program);
       window.world = world;
 
+      world.forcedRedraw = true;
       requestAnimationFrame(function onAnimationFrame() {
-        world.draw();
+        if (world.update()) {
+          world.draw();
+        }
+
+        requestAnimationFrame(onAnimationFrame);
       });
+
+      $("#parameters").oninput = function(ev) {
+        let settings;
+        try {
+          settings = JSON.parse(ev.target.value);
+        } catch (ex) {
+          console.log("Invalid JSON");
+          return;
+        }
+
+        if (settings.roots.length != world.settings.roots.length
+        || settings.exponent != world.settings.exponent
+        || settings.iterations != world.settings.iterations) {
+          console.log("Recreating shader");
+          world.shaderProgram = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
+        }
+
+        world.forcedRedraw = true;
+        world.settings = settings;
+      };
     });
   });
 });

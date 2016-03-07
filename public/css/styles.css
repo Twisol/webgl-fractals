@@ -6,3 +6,15 @@ html, body {
   height: 100%;
   background-color: black;
 }
+
+#parameters {
+  color: #FFFFFF;
+  background-color: #000000;
+  border: 0px;
+  margin-left: 1ch;
+  font-size: 15px;
+  height: 720px;
+  width: 50ch;
+
+  resize: none;
+}
