@@ -34,7 +34,8 @@ vec2 compdiv(const vec2 a, const vec2 b){
   return compmul(a, b*vec2(1, -1)) / dot(b, b);
 }
 
-// Computes z - a*poly(z)/deriv(z)
+// Computes z - poly(z)/deriv(z),
+// where poly(x) = prod_{i=1}^{NUMROOTS} u_root[i]^u_multiplicities[i]
 vec2 approximation(const vec2 z) {
   vec2 acc = vec2(0, 0);
   for (int i = 0; i < NUMROOTS; i += 1) {
