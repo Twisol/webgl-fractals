@@ -14,11 +14,11 @@ uniform vec3 u_color;
 uniform float u_root_radius;
 
 // Point transformation and tolerance
-uniform vec2 u_a;
 uniform float u_eps;
 
 // Polynomial roots
 uniform vec2 u_roots[NUMROOTS];
+uniform vec2 u_multiplicities[NUMROOTS];
 
 // Current point
 varying vec2 v_vertex;
@@ -38,9 +38,9 @@ vec2 compdiv(const vec2 a, const vec2 b){
 vec2 approximation(const vec2 z) {
   vec2 acc = vec2(0, 0);
   for (int i = 0; i < NUMROOTS; i += 1) {
-    acc += compdiv(vec2(1, 0), z - u_roots[i]);
+    acc += compdiv(u_multiplicities[i], z - u_roots[i]);
   }
-  return z - compmul(u_a, compdiv(vec2(1, 0), acc));
+  return z - compdiv(vec2(1, 0), acc);
 }
 
 void main() {

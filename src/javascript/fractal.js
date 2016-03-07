@@ -69,21 +69,21 @@ Fractal.prototype.draw = function() {
   let aspectLocation = gl.getUniformLocation(shaderProgram, "u_aspect");
 
   let rootsLocation = gl.getUniformLocation(shaderProgram, "u_roots");
+  let multiplicitiesLocation = gl.getUniformLocation(shaderProgram, "u_multiplicities");
   let centerLocation = gl.getUniformLocation(shaderProgram, "u_center");
   let zoomLocation = gl.getUniformLocation(shaderProgram, "u_zoom");
   let brightnessLocation = gl.getUniformLocation(shaderProgram, "u_brightness");
   let colorLocation = gl.getUniformLocation(shaderProgram, "u_color");
   let rootRadiusLocation = gl.getUniformLocation(shaderProgram, "u_root_radius");
-  let aLocation = gl.getUniformLocation(shaderProgram, "u_a");
   let epsLocation = gl.getUniformLocation(shaderProgram, "u_eps");
 
   gl.uniform2fv(rootsLocation, Array.prototype.concat.apply([], this.settings.roots));
+  gl.uniform2fv(multiplicitiesLocation, Array.prototype.concat.apply([], this.settings.multiplicities));
   gl.uniform2fv(centerLocation, this.settings.center);
   gl.uniform1f(zoomLocation, this.settings.zoom);
   gl.uniform1f(brightnessLocation, this.settings.brightness);
   gl.uniform3fv(colorLocation, this.settings.color);
   gl.uniform1f(rootRadiusLocation, this.settings.root_radius);
-  gl.uniform2fv(aLocation, this.settings.a);
   gl.uniform1f(epsLocation, this.settings.eps);
 
   gl.uniform1f(aspectLocation, canvas.width/canvas.height);
@@ -125,6 +125,8 @@ window.onkeyup = function(ev) {
   }
 }
 
+//$.fetch("/catalog.json", {responseType: "json"}).then(xhrContent).then(function(catalog) {
+//  var settings = Object.freeze(catalog["metro"]);
 $.fetch("/parameters.json", {responseType: "json"}).then(xhrContent).then(function(settings) {
   $.fetch("/shaders/frac_fragment.glsl").then(xhrContent).then(function(fragmentShaderSource) {
     $.fetch("/shaders/frac_vertex.glsl").then(xhrContent).then(function(vertexShaderSource) {
