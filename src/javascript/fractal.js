@@ -142,15 +142,14 @@ canvas.addEventListener("click", function(ev) {
   canvas.focus();
 });
 
-// $.fetch("/catalog.json", {responseType: "json"}).then(xhrContent).then(function(catalog) {
-//  var settings = catalog["metro"];
-$.fetch("/parameters.json", {responseType: "json"}).then(xhrContent).then(function(settings) {
-  // Clone the settings object so we can modify it
-  settings = JSON.parse(JSON.stringify(settings));
-  $("#parameters").value = JSON.stringify(settings, null, 2);
+// $.fetch("catalog.json", {responseType: "json"}).then(xhrContent).then(function(catalog) {
+//  var settings = JSON.parse(JSON.stringify(catalog["metro"]));
+$.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
+  let settings = JSON.parse(parametersJSON);
+  $("#parameters").value = parametersJSON;
 
-  $.fetch("/shaders/frac_fragment.glsl").then(xhrContent).then(function(fragmentShaderSource) {
-    $.fetch("/shaders/frac_vertex.glsl").then(xhrContent).then(function(vertexShaderSource) {
+  $.fetch("shaders/frac_fragment.glsl").then(xhrContent).then(function(fragmentShaderSource) {
+    $.fetch("shaders/frac_vertex.glsl").then(xhrContent).then(function(vertexShaderSource) {
       // Create a canvas
       let canvas = document.getElementById("canvas");
       // canvas.width = window.innerWidth;
