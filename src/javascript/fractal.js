@@ -7,7 +7,6 @@ let Models = {
   ]),
 };
 
-
 function xhrContent(xhr) {
   return xhr.response;
 }
@@ -91,19 +90,19 @@ Fractal.prototype.draw = function() {
 
   let rootsLocation = gl.getUniformLocation(shaderProgram, "u_roots");
   let multiplicitiesLocation = gl.getUniformLocation(shaderProgram, "u_multiplicities");
+  let colorsLocation = gl.getUniformLocation(shaderProgram, "u_colors");
   let centerLocation = gl.getUniformLocation(shaderProgram, "u_center");
   let zoomLocation = gl.getUniformLocation(shaderProgram, "u_zoom");
   let brightnessLocation = gl.getUniformLocation(shaderProgram, "u_brightness");
-  let colorLocation = gl.getUniformLocation(shaderProgram, "u_color");
   let rootRadiusLocation = gl.getUniformLocation(shaderProgram, "u_root_radius");
   let epsLocation = gl.getUniformLocation(shaderProgram, "u_eps");
 
   gl.uniform2fv(rootsLocation, Array.prototype.concat.apply([], this.settings.roots));
   gl.uniform2fv(multiplicitiesLocation, Array.prototype.concat.apply([], this.settings.multiplicities));
+  gl.uniform3fv(colorsLocation, Array.prototype.concat.apply([], this.settings.colors));
   gl.uniform2fv(centerLocation, this.settings.center);
   gl.uniform1f(zoomLocation, this.settings.zoom);
   gl.uniform1f(brightnessLocation, this.settings.brightness);
-  gl.uniform3fv(colorLocation, this.settings.color);
   gl.uniform1f(rootRadiusLocation, this.settings.root_radius);
   gl.uniform1f(epsLocation, this.settings.eps);
 

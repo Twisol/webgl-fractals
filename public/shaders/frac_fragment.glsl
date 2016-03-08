@@ -10,7 +10,6 @@ uniform float u_zoom;
 
 // Color control
 uniform float u_brightness;
-uniform vec3 u_color;
 uniform float u_root_radius;
 
 // Point transformation and tolerance
@@ -19,6 +18,7 @@ uniform float u_eps;
 // Polynomial roots
 uniform vec2 u_roots[NUMROOTS];
 uniform vec2 u_multiplicities[NUMROOTS];
+uniform vec3 u_colors[NUMROOTS];
 
 // Current point
 varying vec2 v_vertex;
@@ -30,18 +30,32 @@ vec2 compmul(const vec2 a, const vec2 b) {
 }
 
 // Complex division
-vec2 compdiv(const vec2 a, const vec2 b){
+vec2 compdiv(const vec2 a, const vec2 b) {
   return compmul(a, b*vec2(1, -1)) / dot(b, b);
 }
 
 // Computes z - poly(z)/deriv(z),
 // where poly(x) = prod_{i=1}^{NUMROOTS} u_root[i]^u_multiplicities[i]
 vec2 approximation(const vec2 z) {
-  vec2 acc = vec2(0, 0);
+  vec2 num = vec2(1, 0);
   for (int i = 0; i < NUMROOTS; i += 1) {
-    acc += compdiv(u_multiplicities[i], z - u_roots[i]);
+    num = compmul(num, z - u_roots[i]);
   }
-  return z - compdiv(vec2(1, 0), acc);
+
+  vec2 denom = vec2(0, 0);
+  for (int i = 0; i < NUMROOTS; i += 1) {
+    vec2 term = u_multiplicities[i];
+    for (int j = 0; j < NUMROOTS; j += 1) {
+      if (j == i) {
+        continue;
+      }
+
+      term = compmul(term, z - u_roots[j]);
+    }
+    denom += term;
+  }
+
+  return z - compdiv(num, denom);
 }
 
 void main() {
@@ -56,16 +70,16 @@ void main() {
     }
   }
 
-  float b = 0.0;
+  vec3 b = vec3(0.0, 0.0, 0.0);
   for (int i = 0; i < ITERATIONS; i += 1) {
     p = approximation(p);
 
     for (int j = 0; j < NUMROOTS; j += 1) {
       if (dot(p - u_roots[j], p - u_roots[j]) < tolerance) {
-        b += float(j+1)*u_brightness;
+        b += u_colors[j];
       }
     }
   }
 
-  gl_FragColor = vec4((b/float(ITERATIONS))*u_color, 1.0);
+  gl_FragColor = vec4(b/float(ITERATIONS) * u_brightness, 1.0);
 }
