@@ -7,6 +7,80 @@ let Models = {
   ]),
 };
 
+function compadd(a, b) {
+  return [a[0] + b[0], a[1] + b[1]];
+}
+
+function compmul(a, b) {
+  return [a[0]*b[0] - a[1]*b[1], a[0]*b[1] + a[1]*b[0]];
+}
+
+function polyadd(p1, p2) {
+  if (p1.length < p2.length) {
+    let tmp = p1;
+    p1 = p2;
+    p2 = tmp;
+  }
+  // p1 is now at least as long as p2
+
+  // Get the higher-order terms from p1 which aren't affected
+  let p = p1.slice(0, p1.length - p2.length);
+  p1 = p1.slice(p1.length - p2.length);
+
+  // Sum the lower-order terms
+  for (let i = 0; i < p1.length; i += 1) {
+    p.push(compadd(p1[i], p2[i]));
+  }
+
+  return p;
+}
+
+function polymul(p1, p2) {
+  let p = [];
+
+  for (let i = 0; i <= Math.max(p1.length, p2.length); i += 1) {
+  // For every term in the result polynomial
+    let term = [0, 0];
+
+    for (let a = 0; a < p1.length; a += 1) {
+      let b = i - a;
+      if (b < 0) {
+        break;
+      } else if (b >= p2.length) {
+        continue;
+      }
+
+      term = compadd(term, compmul(p1[a], p2[b]));
+    }
+
+    p.push(term);
+  }
+
+  return p;
+}
+
+function getNumerator(roots) {
+  let poly = [[1, 0]];
+  for (let i = 0; i < roots.length; i += 1) {
+    poly = polymul(poly, [[1, 0], compmul([-1, 0], roots[i])]);
+  }
+  return poly;
+}
+
+function getDenominator(roots, multiplicities) {
+  let poly = [[0, 0]];
+  for (let i = 0; i < roots.length; i += 1) {
+    let term = [multiplicities[i]];
+    for (let j = 0; j < roots.length; j += 1) {
+      if (j !== i) {
+        term = polymul(term, [[1, 0], compmul([-1, 0], roots[j])]);
+      }
+    }
+    poly = polyadd(poly, term);
+  }
+  return poly;
+}
+
 function xhrContent(xhr) {
   return xhr.response;
 }
@@ -89,7 +163,8 @@ Fractal.prototype.draw = function() {
   let aspectLocation = gl.getUniformLocation(shaderProgram, "u_aspect");
 
   let rootsLocation = gl.getUniformLocation(shaderProgram, "u_roots");
-  let multiplicitiesLocation = gl.getUniformLocation(shaderProgram, "u_multiplicities");
+  let numeratorLocation = gl.getUniformLocation(shaderProgram, "u_numerator");
+  let denominatorLocation = gl.getUniformLocation(shaderProgram, "u_denominator");
   let colorsLocation = gl.getUniformLocation(shaderProgram, "u_colors");
   let centerLocation = gl.getUniformLocation(shaderProgram, "u_center");
   let zoomLocation = gl.getUniformLocation(shaderProgram, "u_zoom");
@@ -98,7 +173,8 @@ Fractal.prototype.draw = function() {
   let epsLocation = gl.getUniformLocation(shaderProgram, "u_eps");
 
   gl.uniform2fv(rootsLocation, Array.prototype.concat.apply([], this.settings.roots));
-  gl.uniform2fv(multiplicitiesLocation, Array.prototype.concat.apply([], this.settings.multiplicities));
+  gl.uniform2fv(numeratorLocation, Array.prototype.concat.apply([], this.settings.numerator));
+  gl.uniform2fv(denominatorLocation, Array.prototype.concat.apply([], this.settings.denominator));
   gl.uniform3fv(colorsLocation, Array.prototype.concat.apply([], this.settings.colors));
   gl.uniform2fv(centerLocation, this.settings.center);
   gl.uniform1f(zoomLocation, this.settings.zoom);
@@ -147,6 +223,9 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
   let settings = JSON.parse(parametersJSON);
   $("#parameters").value = parametersJSON;
 
+  settings.numerator = getNumerator(settings.roots);
+  settings.denominator = getDenominator(settings.roots, settings.multiplicities);
+
   $.fetch("shaders/frac_fragment.glsl").then(xhrContent).then(function(fragmentShaderSource) {
     $.fetch("shaders/frac_vertex.glsl").then(xhrContent).then(function(vertexShaderSource) {
       // Create a canvas
@@ -190,10 +269,19 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
         }
 
         if (settings.roots.length != world.settings.roots.length
-        || settings.exponent != world.settings.exponent
         || settings.iterations != world.settings.iterations) {
           console.log("Recreating shader");
           world.shaderProgram = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
+        }
+
+        if (JSON.stringify(settings.roots) !== JSON.stringify(world.settings.roots)
+        ||  JSON.stringify(settings.multiplicities) !== JSON.stringify(world.settings.multiplicities)) {
+          console.log("Recreating polynomials");
+          settings.numerator = getNumerator(settings.roots);
+          settings.denominator = getDenominator(settings.roots, settings.multiplicities);
+        } else {
+          settings.numerator = world.settings.numerator;
+          settings.denominator = world.settings.denominator;
         }
 
         world.forcedRedraw = true;

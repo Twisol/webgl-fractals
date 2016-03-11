@@ -17,7 +17,8 @@ uniform float u_eps;
 
 // Polynomial roots
 uniform vec2 u_roots[NUMROOTS];
-uniform vec2 u_multiplicities[NUMROOTS];
+uniform vec2 u_numerator[NUMROOTS+1];
+uniform vec2 u_denominator[NUMROOTS];
 uniform vec3 u_colors[NUMROOTS];
 
 // Current point
@@ -37,22 +38,11 @@ vec2 compdiv(const vec2 a, const vec2 b) {
 // Computes z - poly(z)/deriv(z),
 // where poly(x) = prod_{i=1}^{NUMROOTS} u_root[i]^u_multiplicities[i]
 vec2 approximation(const vec2 z) {
-  vec2 num = vec2(1, 0);
-  for (int i = 0; i < NUMROOTS; i += 1) {
-    num = compmul(num, z - u_roots[i]);
-  }
-
+  vec2 num = u_numerator[0];
   vec2 denom = vec2(0, 0);
-  for (int i = 0; i < NUMROOTS; i += 1) {
-    vec2 term = u_multiplicities[i];
-    for (int j = 0; j < NUMROOTS; j += 1) {
-      if (j == i) {
-        continue;
-      }
-
-      term = compmul(term, z - u_roots[j]);
-    }
-    denom += term;
+  for (int i = 1; i < NUMROOTS+1; i += 1) {
+    num = compmul(num, z) + u_numerator[i];
+    denom = compmul(denom, z) + u_denominator[i-1];
   }
 
   return z - compdiv(num, denom);
