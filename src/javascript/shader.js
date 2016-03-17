@@ -47,7 +47,7 @@ export function compile(gl, shader_schema) {
       console.log(`Shader has undetermined constant ${k}`);
     }
 
-    throw new Error("Shader has undetermined constants.");
+    throw new Error("Shader has undetermined constants");
     return null;
   }
 
@@ -56,6 +56,7 @@ export function compile(gl, shader_schema) {
   gl.compileShader(vertexShader);
   if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
     console.log(gl.getShaderInfoLog(vertexShader));
+    throw new Error("Unable to compile vertex shader");
   }
 
   let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -63,6 +64,7 @@ export function compile(gl, shader_schema) {
   gl.compileShader(fragmentShader);
   if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
     console.log(gl.getShaderInfoLog(fragmentShader));
+    throw new Error("Unable to compile fragment shader");
   }
 
   let program = gl.createProgram();
@@ -71,6 +73,7 @@ export function compile(gl, shader_schema) {
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     console.log(gl.getProgramInfoLog(program));
+    throw new Error("Unable to link shader program");
   }
 
   let locations = {};

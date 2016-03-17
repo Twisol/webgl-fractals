@@ -3,10 +3,7 @@ import * as Shader from "./shader";
 import Models from "./models";
 
 
-function Fractal(gl, model, settings, shader) {
-  this.gl = gl;
-  this.model = model;
-
+function Fractal(settings, shader) {
   this.settings = settings;
   this.shader = shader;
 
@@ -44,11 +41,7 @@ Fractal.prototype.update = function() {
   return shouldRedraw;
 };
 
-Fractal.prototype.draw = function() {
-  let gl = this.gl;
-  let shader = this.shader;
-
-  // Render the tile geometry
+Fractal.prototype.load_uniforms = function(gl, shader) {
   gl.useProgram(shader.program);
 
   gl.uniform2fv(shader.locations["u_roots"], Array.prototype.concat.apply([], this.settings.roots));
@@ -60,41 +53,22 @@ Fractal.prototype.draw = function() {
   gl.uniform1f(shader.locations["u_brightness"], this.settings.brightness);
   gl.uniform1f(shader.locations["u_root_radius"], this.settings.root_radius);
   gl.uniform1f(shader.locations["u_eps"], this.settings.eps);
-
   gl.uniform1f(shader.locations["u_aspect"], canvas.width/canvas.height);
+};
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.model);
+Fractal.prototype.draw = function(gl, model) {
+  let shader = this.shader;
+
+  gl.useProgram(shader.program);
+  gl.bindBuffer(gl.ARRAY_BUFFER, model);
   gl.enableVertexAttribArray(shader.locations["a_vertex"]);
   gl.vertexAttribPointer(shader.locations["a_vertex"], 2, gl.FLOAT, false, 0, 0);
 
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-}
 
-canvas.tabIndex = 1;
-canvas.addEventListener("keydown", function(ev) {
-  switch (ev.keyCode) {
-  case 65: world.keys.left = 1; break;
-  case 68: world.keys.right = 1; break;
-  case 87: world.keys.up = 1; break;
-  case 83: world.keys.down = 1; break;
-  case 16: world.keys.zoomin = 1; break;
-  case 32: world.keys.zoomout = 1; break;
-  }
-});
-canvas.addEventListener("keyup", function(ev) {
-  switch (ev.keyCode) {
-  case 65: world.keys.left = 0; break;
-  case 68: world.keys.right = 0; break;
-  case 87: world.keys.up = 0; break;
-  case 83: world.keys.down = 0; break;
-  case 16: world.keys.zoomin = 0; break;
-  case 32: world.keys.zoomout = 0; break;
-  }
-});
-canvas.addEventListener("click", function(ev) {
-  canvas.focus();
-});
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.NONE);
+}
 
 
 const FRACTAL_SHADER_SCHEMA = {
@@ -137,8 +111,6 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
   Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
     // Create a canvas
     let canvas = document.getElementById("canvas");
-    // canvas.width = window.innerWidth;
-    // canvas.height = window.innerHeight;
 
     // Get the WebGL context
     let gl = canvas.getContext("webgl", {
@@ -149,9 +121,10 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
     });
 
     // Load the surface geometry into GPU memory
-    let buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    let mesh = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
     gl.bufferData(gl.ARRAY_BUFFER, Models.quad, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.NONE);
 
     let shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
       "ITERATIONS": settings.iterations,
@@ -159,7 +132,7 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
     }));
 
     // Set up the fractal generator
-    let world = new Fractal(gl, buffer, settings, shader);
+    let world = new Fractal(settings, shader);
     window.world = world;
 
     world.forcedRedraw = true;
@@ -168,11 +141,12 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
 
       let shouldRedraw = world.update();
       if (shouldRedraw) {
-        world.draw();
+        world.load_uniforms(gl, world.shader);
+        world.draw(gl, shader, mesh);
       }
     });
 
-    $("#parameters").oninput = function(ev) {
+    $("#parameters").addEventListener("input", function(ev) {
       let settings;
       try {
         settings = JSON.parse(ev.target.value);
@@ -184,7 +158,7 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
       if (settings.roots.length != world.settings.roots.length
       || settings.iterations != world.settings.iterations) {
         console.log("Recreating shader");
-        world.shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
+        shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
           "ITERATIONS": settings.iterations,
           "NUMROOTS": settings.roots.length,
         }));
@@ -204,6 +178,30 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
 
       world.forcedRedraw = true;
       world.settings = settings;
-    };
+    });
+
+    canvas.addEventListener("keydown", function(ev) {
+      switch (ev.keyCode) {
+      case 65: world.keys.left = 1; break;
+      case 68: world.keys.right = 1; break;
+      case 87: world.keys.up = 1; break;
+      case 83: world.keys.down = 1; break;
+      case 16: world.keys.zoomin = 1; break;
+      case 32: world.keys.zoomout = 1; break;
+      }
+    });
+    canvas.addEventListener("keyup", function(ev) {
+      switch (ev.keyCode) {
+      case 65: world.keys.left = 0; break;
+      case 68: world.keys.right = 0; break;
+      case 87: world.keys.up = 0; break;
+      case 83: world.keys.down = 0; break;
+      case 16: world.keys.zoomin = 0; break;
+      case 32: world.keys.zoomout = 0; break;
+      }
+    });
+    canvas.addEventListener("click", function(ev) {
+      canvas.focus();
+    });
   });
 });
