@@ -78,7 +78,7 @@ export function compile(gl, shader_schema) {
 
   let locations = {};
   for (let k of shader_schema.signature.uniforms) {
-    locations[k.name] = gl.getUniformLocation(program, k.name);
+    locations[k] = gl.getUniformLocation(program, k);
   }
   for (let k of shader_schema.signature.attributes) {
     locations[k] = gl.getAttribLocation(program, k);
