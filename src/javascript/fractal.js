@@ -79,9 +79,12 @@ function Fractal(gl, model, settings, shader) {
 }
 
 Fractal.prototype.update = function() {
-  let shouldRedraw = this.forcedRedraw;
-  this.forcedRedraw = false;
+  let shouldRedraw = false;
 
+  if (this.forcedRedraw) {
+    this.forcedRedraw = false;
+    shouldRedraw = true;
+  }
   if (this.keys.up - this.keys.down != 0) {
     this.settings.center[1] += (this.keys.up - this.keys.down)/(30*this.settings.zoom);
     shouldRedraw = true;
@@ -189,11 +192,12 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
 
       world.forcedRedraw = true;
       requestAnimationFrame(function onAnimationFrame() {
-        if (world.update()) {
+        requestAnimationFrame(onAnimationFrame);
+
+        let shouldRedraw = world.update();
+        if (shouldRedraw) {
           world.draw();
         }
-
-        requestAnimationFrame(onAnimationFrame);
       });
 
       $("#parameters").oninput = function(ev) {
