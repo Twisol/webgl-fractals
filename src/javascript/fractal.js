@@ -1,63 +1,6 @@
 import {preprocessPolynomial} from "./newton";
-
-let Models = {
-  "quad": new Float32Array([
-    -1, -1,
-    -1,  1,
-     1, -1,
-     1,  1
-  ]),
-};
-
-
-function xhrContent(xhr) {
-  return xhr.response;
-}
-
-function makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, roots, exponent, iterations) {
-  fragmentShaderSource = fragmentShaderSource.replace(/\{\{ITERATIONS\}\}/g, ""+iterations).replace(/\{\{NUMROOTS\}\}/g, ""+roots.length);
-
-  let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fragmentShader, fragmentShaderSource);
-  gl.compileShader(fragmentShader);
-  if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
-    console.log(gl.getShaderInfoLog(fragmentShader));
-  }
-
-  let vertexShader = gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vertexShader, vertexShaderSource);
-  gl.compileShader(vertexShader);
-  if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
-    console.log(gl.getShaderInfoLog(vertexShader));
-  }
-
-  let program = gl.createProgram();
-  gl.attachShader(program, fragmentShader);
-  gl.attachShader(program, vertexShader);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.log(gl.getProgramInfoLog(program));
-  }
-
-  return {
-    program: program,
-    locations: {
-      "a_vertex": gl.getAttribLocation(program, "a_vertex"),
-      "u_aspect": gl.getUniformLocation(program, "u_aspect"),
-
-      "u_roots": gl.getUniformLocation(program, "u_roots"),
-      "u_colors": gl.getUniformLocation(program, "u_colors"),
-      "u_numerator": gl.getUniformLocation(program, "u_numerator"),
-      "u_denominator": gl.getUniformLocation(program, "u_denominator"),
-      "u_eps": gl.getUniformLocation(program, "u_eps"),
-
-      "u_center": gl.getUniformLocation(program, "u_center"),
-      "u_zoom": gl.getUniformLocation(program, "u_zoom"),
-      "u_brightness": gl.getUniformLocation(program, "u_brightness"),
-      "u_root_radius": gl.getUniformLocation(program, "u_root_radius"),
-    },
-  }
-}
+import * as Shader from "./shader";
+import Models from "./models";
 
 
 function Fractal(gl, model, settings, shader) {
@@ -153,7 +96,34 @@ canvas.addEventListener("click", function(ev) {
   canvas.focus();
 });
 
-// $.fetch("catalog.json", {responseType: "json"}).then(xhrContent).then(function(catalog) {
+
+const FRACTAL_SHADER_SCHEMA = {
+  vertex_source_path: "shaders/frac_vertex.glsl",
+  fragment_source_path: "shaders/frac_fragment.glsl",
+
+  signature: {
+    constants: ["ITERATIONS", "NUMROOTS"],
+
+    uniforms: [
+      {name: "u_aspect", type: "1f"},
+      {name: "u_roots", type: "2fv"},
+      {name: "u_colors", type: "3fv"},
+      {name: "u_numerator", type: "2fv"},
+      {name: "u_denominator", type: "2fv"},
+      {name: "u_eps", type: "1f"},
+      {name: "u_center", type: "2f"},
+      {name: "u_zoom", type: "1f"},
+      {name: "u_brightness", type: "1f"},
+      {name: "u_root_radius", type: "1f"},
+    ],
+
+    attributes: ["a_vertex"],
+  },
+};
+
+const xhrContent = (xhr) => xhr.response;
+
+// $.fetch("catalog.json").then(xhrContent).then(function(catalog) {
 //  var settings = JSON.parse(JSON.stringify(catalog["metro"]));
 $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
   let settings = JSON.parse(parametersJSON);
@@ -164,72 +134,76 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
     denominator: settings.denominator,
   } = preprocessPolynomial(settings.roots, settings.multiplicities));
 
-  $.fetch("shaders/frac_fragment.glsl").then(xhrContent).then(function(fragmentShaderSource) {
-    $.fetch("shaders/frac_vertex.glsl").then(xhrContent).then(function(vertexShaderSource) {
-      // Create a canvas
-      let canvas = document.getElementById("canvas");
-      // canvas.width = window.innerWidth;
-      // canvas.height = window.innerHeight;
+  Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
+    // Create a canvas
+    let canvas = document.getElementById("canvas");
+    // canvas.width = window.innerWidth;
+    // canvas.height = window.innerHeight;
 
-      // Get the WebGL context
-      let gl = canvas.getContext("webgl", {
-        antialias: true,
-        depth: false,
-        alpha: false,
-        preserveDrawingBuffer: true,  // enable saving the canvas as an image.
-      });
+    // Get the WebGL context
+    let gl = canvas.getContext("webgl", {
+      antialias: true,
+      depth: false,
+      alpha: false,
+      preserveDrawingBuffer: true,  // enable saving the canvas as an image.
+    });
 
-      // Load the surface geometry into GPU memory
-      let buffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, Models["quad"], gl.STATIC_DRAW);
+    // Load the surface geometry into GPU memory
+    let buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, Models.quad, gl.STATIC_DRAW);
 
-      let shader = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
+    let shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
+      "ITERATIONS": settings.iterations,
+      "NUMROOTS": settings.roots.length,
+    }));
 
-      // Set up the fractal generator
-      let world = new Fractal(gl, buffer, settings, shader);
-      window.world = world;
+    // Set up the fractal generator
+    let world = new Fractal(gl, buffer, settings, shader);
+    window.world = world;
+
+    world.forcedRedraw = true;
+    requestAnimationFrame(function onAnimationFrame() {
+      requestAnimationFrame(onAnimationFrame);
+
+      let shouldRedraw = world.update();
+      if (shouldRedraw) {
+        world.draw();
+      }
+    });
+
+    $("#parameters").oninput = function(ev) {
+      let settings;
+      try {
+        settings = JSON.parse(ev.target.value);
+      } catch (ex) {
+        console.log("Invalid JSON");
+        return;
+      }
+
+      if (settings.roots.length != world.settings.roots.length
+      || settings.iterations != world.settings.iterations) {
+        console.log("Recreating shader");
+        world.shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
+          "ITERATIONS": settings.iterations,
+          "NUMROOTS": settings.roots.length,
+        }));
+      }
+
+      if (JSON.stringify(settings.roots) !== JSON.stringify(world.settings.roots)
+      ||  JSON.stringify(settings.multiplicities) !== JSON.stringify(world.settings.multiplicities)) {
+        console.log("Recreating polynomials");
+        ({
+          numerator: settings.numerator,
+          denominator: settings.denominator,
+        } = preprocessPolynomial(settings.roots, settings.multiplicities));
+      } else {
+        settings.numerator = world.settings.numerator;
+        settings.denominator = world.settings.denominator;
+      }
 
       world.forcedRedraw = true;
-      requestAnimationFrame(function onAnimationFrame() {
-        requestAnimationFrame(onAnimationFrame);
-
-        let shouldRedraw = world.update();
-        if (shouldRedraw) {
-          world.draw();
-        }
-      });
-
-      $("#parameters").oninput = function(ev) {
-        let settings;
-        try {
-          settings = JSON.parse(ev.target.value);
-        } catch (ex) {
-          console.log("Invalid JSON");
-          return;
-        }
-
-        if (settings.roots.length != world.settings.roots.length
-        || settings.iterations != world.settings.iterations) {
-          console.log("Recreating shader");
-          world.shader = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
-        }
-
-        if (JSON.stringify(settings.roots) !== JSON.stringify(world.settings.roots)
-        ||  JSON.stringify(settings.multiplicities) !== JSON.stringify(world.settings.multiplicities)) {
-          console.log("Recreating polynomials");
-          ({
-            numerator: settings.numerator,
-            denominator: settings.denominator,
-          } = preprocessPolynomial(settings.roots, settings.multiplicities));
-        } else {
-          settings.numerator = world.settings.numerator;
-          settings.denominator = world.settings.denominator;
-        }
-
-        world.forcedRedraw = true;
-        world.settings = settings;
-      };
-    });
+      world.settings = settings;
+    };
   });
 });
