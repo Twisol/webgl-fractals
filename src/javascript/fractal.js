@@ -39,33 +39,33 @@ function makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, roots, 
     console.log(gl.getProgramInfoLog(program));
   }
 
-  return program;
+  return {
+    program: program,
+    locations: {
+      "a_vertex": gl.getAttribLocation(program, "a_vertex"),
+      "u_aspect": gl.getUniformLocation(program, "u_aspect"),
+
+      "u_roots": gl.getUniformLocation(program, "u_roots"),
+      "u_colors": gl.getUniformLocation(program, "u_colors"),
+      "u_numerator": gl.getUniformLocation(program, "u_numerator"),
+      "u_denominator": gl.getUniformLocation(program, "u_denominator"),
+      "u_eps": gl.getUniformLocation(program, "u_eps"),
+
+      "u_center": gl.getUniformLocation(program, "u_center"),
+      "u_zoom": gl.getUniformLocation(program, "u_zoom"),
+      "u_brightness": gl.getUniformLocation(program, "u_brightness"),
+      "u_root_radius": gl.getUniformLocation(program, "u_root_radius"),
+    },
+  }
 }
 
 
-function Fractal(gl, model, settings, shaderProgram) {
+function Fractal(gl, model, settings, shader) {
   this.gl = gl;
   this.model = model;
 
   this.settings = settings;
-  this.shader = {
-    program: shaderProgram,
-    locations: {
-      "a_vertex": gl.getAttribLocation(shaderProgram, "a_vertex"),
-      "u_aspect": gl.getUniformLocation(shaderProgram, "u_aspect"),
-
-      "u_roots": gl.getUniformLocation(shaderProgram, "u_roots"),
-      "u_colors": gl.getUniformLocation(shaderProgram, "u_colors"),
-      "u_numerator": gl.getUniformLocation(shaderProgram, "u_numerator"),
-      "u_denominator": gl.getUniformLocation(shaderProgram, "u_denominator"),
-      "u_eps": gl.getUniformLocation(shaderProgram, "u_eps"),
-
-      "u_center": gl.getUniformLocation(shaderProgram, "u_center"),
-      "u_zoom": gl.getUniformLocation(shaderProgram, "u_zoom"),
-      "u_brightness": gl.getUniformLocation(shaderProgram, "u_brightness"),
-      "u_root_radius": gl.getUniformLocation(shaderProgram, "u_root_radius"),
-    },
-  };
+  this.shader = shader;
 
   this.forcedRedraw = false;
   this.keys = {
@@ -171,6 +171,8 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
       // Get the WebGL context
       let gl = canvas.getContext("webgl", {
         antialias: true,
+        depth: false,
+        alpha: false,
         preserveDrawingBuffer: true,  // enable saving the canvas as an image.
       });
 
@@ -179,10 +181,10 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.bufferData(gl.ARRAY_BUFFER, Models["quad"], gl.STATIC_DRAW);
 
-      let program = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
+      let shader = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
 
       // Set up the fractal generator
-      let world = new Fractal(gl, buffer, settings, program);
+      let world = new Fractal(gl, buffer, settings, shader);
       window.world = world;
 
       world.forcedRedraw = true;
@@ -206,7 +208,7 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
         if (settings.roots.length != world.settings.roots.length
         || settings.iterations != world.settings.iterations) {
           console.log("Recreating shader");
-          world.shaderProgram = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
+          world.shader = makeShaderProgram(gl, fragmentShaderSource, vertexShaderSource, settings.roots, settings.exponent, settings.iterations);
         }
 
         if (JSON.stringify(settings.roots) !== JSON.stringify(world.settings.roots)
