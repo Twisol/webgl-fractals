@@ -3,9 +3,8 @@ import * as Shader from "./shader";
 import Models from "./models";
 
 
-function Fractal(settings, shader) {
+function Fractal(settings) {
   this.settings = settings;
-  this.shader = shader;
 
   this.forcedRedraw = false;
   this.keys = {
@@ -101,11 +100,6 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
   let settings = JSON.parse(parametersJSON);
   $("#parameters").value = parametersJSON;
 
-  ({
-    numerator: settings.numerator,
-    denominator: settings.denominator,
-  } = preprocessPolynomial(settings.roots, settings.multiplicities));
-
   Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
     // Create a canvas
     let canvas = document.getElementById("canvas");
@@ -129,8 +123,13 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
       "NUMROOTS": settings.roots.length,
     }));
 
+    ({
+      numerator: settings.numerator,
+      denominator: settings.denominator,
+    } = preprocessPolynomial(settings.roots, settings.multiplicities));
+
     // Set up the fractal generator
-    let world = new Fractal(settings, shader);
+    let world = new Fractal(settings);
     window.world = world;
 
     world.forcedRedraw = true;
@@ -139,7 +138,7 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
 
       let shouldRedraw = world.update();
       if (shouldRedraw) {
-        world.load_uniforms(gl, world.shader);
+        world.load_uniforms(gl, shader);
         world.draw(gl, shader, mesh);
       }
     });
