@@ -1,3 +1,5 @@
+import {preprocessPolynomial} from "./newton";
+
 let Models = {
   "quad": new Float32Array([
     -1, -1,
@@ -7,79 +9,6 @@ let Models = {
   ]),
 };
 
-function compadd(a, b) {
-  return [a[0] + b[0], a[1] + b[1]];
-}
-
-function compmul(a, b) {
-  return [a[0]*b[0] - a[1]*b[1], a[0]*b[1] + a[1]*b[0]];
-}
-
-function polyadd(p1, p2) {
-  if (p1.length < p2.length) {
-    let tmp = p1;
-    p1 = p2;
-    p2 = tmp;
-  }
-  // p1 is now at least as long as p2
-
-  // Get the higher-order terms from p1 which aren't affected
-  let p = p1.slice(0, p1.length - p2.length);
-  p1 = p1.slice(p1.length - p2.length);
-
-  // Sum the lower-order terms
-  for (let i = 0; i < p1.length; i += 1) {
-    p.push(compadd(p1[i], p2[i]));
-  }
-
-  return p;
-}
-
-function polymul(p1, p2) {
-  let p = [];
-
-  for (let i = 0; i <= Math.max(p1.length, p2.length); i += 1) {
-  // For every term in the result polynomial
-    let term = [0, 0];
-
-    for (let a = 0; a < p1.length; a += 1) {
-      let b = i - a;
-      if (b < 0) {
-        break;
-      } else if (b >= p2.length) {
-        continue;
-      }
-
-      term = compadd(term, compmul(p1[a], p2[b]));
-    }
-
-    p.push(term);
-  }
-
-  return p;
-}
-
-function getNumerator(roots) {
-  let poly = [[1, 0]];
-  for (let i = 0; i < roots.length; i += 1) {
-    poly = polymul(poly, [[1, 0], compmul([-1, 0], roots[i])]);
-  }
-  return poly;
-}
-
-function getDenominator(roots, multiplicities) {
-  let poly = [[0, 0]];
-  for (let i = 0; i < roots.length; i += 1) {
-    let term = [multiplicities[i]];
-    for (let j = 0; j < roots.length; j += 1) {
-      if (j !== i) {
-        term = polymul(term, [[1, 0], compmul([-1, 0], roots[j])]);
-      }
-    }
-    poly = polyadd(poly, term);
-  }
-  return poly;
-}
 
 function xhrContent(xhr) {
   return xhr.response;
@@ -119,7 +48,24 @@ function Fractal(gl, model, settings, shaderProgram) {
   this.model = model;
 
   this.settings = settings;
-  this.shaderProgram = shaderProgram;
+  this.shader = {
+    program: shaderProgram,
+    locations: {
+      "a_vertex": gl.getAttribLocation(shaderProgram, "a_vertex"),
+      "u_aspect": gl.getUniformLocation(shaderProgram, "u_aspect"),
+
+      "u_roots": gl.getUniformLocation(shaderProgram, "u_roots"),
+      "u_colors": gl.getUniformLocation(shaderProgram, "u_colors"),
+      "u_numerator": gl.getUniformLocation(shaderProgram, "u_numerator"),
+      "u_denominator": gl.getUniformLocation(shaderProgram, "u_denominator"),
+      "u_eps": gl.getUniformLocation(shaderProgram, "u_eps"),
+
+      "u_center": gl.getUniformLocation(shaderProgram, "u_center"),
+      "u_zoom": gl.getUniformLocation(shaderProgram, "u_zoom"),
+      "u_brightness": gl.getUniformLocation(shaderProgram, "u_brightness"),
+      "u_root_radius": gl.getUniformLocation(shaderProgram, "u_root_radius"),
+    },
+  };
 
   this.forcedRedraw = false;
   this.keys = {
@@ -154,39 +100,26 @@ Fractal.prototype.update = function() {
 
 Fractal.prototype.draw = function() {
   let gl = this.gl;
-  let shaderProgram = this.shaderProgram;
+  let shader = this.shader;
 
   // Render the tile geometry
-  gl.useProgram(shaderProgram);
+  gl.useProgram(shader.program);
 
-  let vertexLocation = gl.getAttribLocation(shaderProgram, "a_vertex");
-  let aspectLocation = gl.getUniformLocation(shaderProgram, "u_aspect");
+  gl.uniform2fv(shader.locations["u_roots"], Array.prototype.concat.apply([], this.settings.roots));
+  gl.uniform2fv(shader.locations["u_numerator"], Array.prototype.concat.apply([], this.settings.numerator));
+  gl.uniform2fv(shader.locations["u_denominator"], Array.prototype.concat.apply([], this.settings.denominator));
+  gl.uniform3fv(shader.locations["u_colors"], Array.prototype.concat.apply([], this.settings.colors));
+  gl.uniform2fv(shader.locations["u_center"], this.settings.center);
+  gl.uniform1f(shader.locations["u_zoom"], this.settings.zoom);
+  gl.uniform1f(shader.locations["u_brightness"], this.settings.brightness);
+  gl.uniform1f(shader.locations["u_root_radius"], this.settings.root_radius);
+  gl.uniform1f(shader.locations["u_eps"], this.settings.eps);
 
-  let rootsLocation = gl.getUniformLocation(shaderProgram, "u_roots");
-  let numeratorLocation = gl.getUniformLocation(shaderProgram, "u_numerator");
-  let denominatorLocation = gl.getUniformLocation(shaderProgram, "u_denominator");
-  let colorsLocation = gl.getUniformLocation(shaderProgram, "u_colors");
-  let centerLocation = gl.getUniformLocation(shaderProgram, "u_center");
-  let zoomLocation = gl.getUniformLocation(shaderProgram, "u_zoom");
-  let brightnessLocation = gl.getUniformLocation(shaderProgram, "u_brightness");
-  let rootRadiusLocation = gl.getUniformLocation(shaderProgram, "u_root_radius");
-  let epsLocation = gl.getUniformLocation(shaderProgram, "u_eps");
-
-  gl.uniform2fv(rootsLocation, Array.prototype.concat.apply([], this.settings.roots));
-  gl.uniform2fv(numeratorLocation, Array.prototype.concat.apply([], this.settings.numerator));
-  gl.uniform2fv(denominatorLocation, Array.prototype.concat.apply([], this.settings.denominator));
-  gl.uniform3fv(colorsLocation, Array.prototype.concat.apply([], this.settings.colors));
-  gl.uniform2fv(centerLocation, this.settings.center);
-  gl.uniform1f(zoomLocation, this.settings.zoom);
-  gl.uniform1f(brightnessLocation, this.settings.brightness);
-  gl.uniform1f(rootRadiusLocation, this.settings.root_radius);
-  gl.uniform1f(epsLocation, this.settings.eps);
-
-  gl.uniform1f(aspectLocation, canvas.width/canvas.height);
+  gl.uniform1f(shader.locations["u_aspect"], canvas.width/canvas.height);
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.model);
-  gl.enableVertexAttribArray(vertexLocation);
-  gl.vertexAttribPointer(vertexLocation, 2, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(shader.locations["a_vertex"]);
+  gl.vertexAttribPointer(shader.locations["a_vertex"], 2, gl.FLOAT, false, 0, 0);
 
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -223,8 +156,10 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
   let settings = JSON.parse(parametersJSON);
   $("#parameters").value = parametersJSON;
 
-  settings.numerator = getNumerator(settings.roots);
-  settings.denominator = getDenominator(settings.roots, settings.multiplicities);
+  ({
+    numerator: settings.numerator,
+    denominator: settings.denominator,
+  } = preprocessPolynomial(settings.roots, settings.multiplicities));
 
   $.fetch("shaders/frac_fragment.glsl").then(xhrContent).then(function(fragmentShaderSource) {
     $.fetch("shaders/frac_vertex.glsl").then(xhrContent).then(function(vertexShaderSource) {
@@ -236,7 +171,7 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
       // Get the WebGL context
       let gl = canvas.getContext("webgl", {
         antialias: true,
-        preserveDrawingBuffer: true  // enable saving the canvas as an image.
+        preserveDrawingBuffer: true,  // enable saving the canvas as an image.
       });
 
       // Load the surface geometry into GPU memory
@@ -277,8 +212,10 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
         if (JSON.stringify(settings.roots) !== JSON.stringify(world.settings.roots)
         ||  JSON.stringify(settings.multiplicities) !== JSON.stringify(world.settings.multiplicities)) {
           console.log("Recreating polynomials");
-          settings.numerator = getNumerator(settings.roots);
-          settings.denominator = getDenominator(settings.roots, settings.multiplicities);
+          ({
+            numerator: settings.numerator,
+            denominator: settings.denominator,
+          } = preprocessPolynomial(settings.roots, settings.multiplicities));
         } else {
           settings.numerator = world.settings.numerator;
           settings.denominator = world.settings.denominator;
