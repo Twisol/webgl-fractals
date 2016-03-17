@@ -56,18 +56,16 @@ Fractal.prototype.load_uniforms = function(gl, shader) {
   gl.uniform1f(shader.locations["u_aspect"], canvas.width/canvas.height);
 };
 
-Fractal.prototype.draw = function(gl, model) {
-  let shader = this.shader;
-
+Fractal.prototype.draw = function(gl, shader, mesh) {
   gl.useProgram(shader.program);
-  gl.bindBuffer(gl.ARRAY_BUFFER, model);
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
   gl.enableVertexAttribArray(shader.locations["a_vertex"]);
   gl.vertexAttribPointer(shader.locations["a_vertex"], 2, gl.FLOAT, false, 0, 0);
 
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.NONE);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
 
 
@@ -124,7 +122,7 @@ $.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
     let mesh = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
     gl.bufferData(gl.ARRAY_BUFFER, Models.quad, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, gl.NONE);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
     let shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
       "ITERATIONS": settings.iterations,
