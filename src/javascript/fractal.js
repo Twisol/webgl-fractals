@@ -56,15 +56,25 @@ Fractal.prototype.load_uniforms = function(gl, shader) {
 };
 
 Fractal.prototype.draw = function(gl, shader, mesh) {
+/// Set up GL state
+  // Load shader state
   gl.useProgram(shader.program);
+
+  // Load array buffer state
   gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
+
+  // Modify global vertex array state
   gl.enableVertexAttribArray(shader.locations["a_vertex"]);
   gl.vertexAttribPointer(shader.locations["a_vertex"], 2, gl.FLOAT, false, 0, 0);
 
+/// Draw using the current pipeline
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
+/// Tear down GL state
+  gl.disableVertexAttribArray(shader.locations["a_vertex"]);
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.useProgram(null);
 }
 
 
@@ -92,13 +102,13 @@ const FRACTAL_SHADER_SCHEMA = {
   },
 };
 
-const xhrContent = (xhr) => xhr.response;
-
-// $.fetch("catalog.json").then(xhrContent).then(function(catalog) {
-//  var settings = JSON.parse(JSON.stringify(catalog["metro"]));
-$.fetch("parameters.json").then(xhrContent).then(function(parametersJSON) {
-  let settings = JSON.parse(parametersJSON);
-  $("#parameters").value = parametersJSON;
+// $.fetch("catalog.json").then(function(xhr) {
+//   let catalog = JSON.parse(xhr.response);
+//   let settings = JSON.parse(JSON.stringify(catalog["metro"]));
+//   $("#parameters").value = JSON.stringify(settings);
+$.fetch("parameters.json").then(function(xhr) {
+  let settings = JSON.parse(xhr.response);
+  $("#parameters").value = xhr.response;
 
   Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
     // Create a canvas
