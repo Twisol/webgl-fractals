@@ -139,7 +139,7 @@ $.fetch("parameters.json").then(function(xhr) {
 
     // Get the WebGL context
     let gl = canvas.getContext("webgl", {
-      antialias: true,
+      antialias: false,
       depth: false,
       alpha: false,
       preserveDrawingBuffer: true,  // enable saving the canvas as an image.
