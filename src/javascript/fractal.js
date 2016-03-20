@@ -111,29 +111,36 @@ const FRACTAL_SHADER_SCHEMA = {
   },
 };
 
+
 // $.fetch("catalog.json").then(function(xhr) {
 //   let catalog = JSON.parse(xhr.response);
 //   let settings = JSON.parse(JSON.stringify(catalog["metro"]));
 //   $("#parameters").value = JSON.stringify(settings);
 $.fetch("parameters.json").then(function(xhr) {
-  let settings = JSON.parse(xhr.response);
-  $("#parameters").value = xhr.response;
-
-  // Set up the fractal generator
-  let world = new Fractal(settings);
-  window.world = world;
-
-  // Keep track of user input
-  let keys = {
-    up: 0,
-    down: 0,
-    left: 0,
-    right: 0,
-    zoomin: 0,
-    zoomout: 0,
-  };
-
   Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
+  /// Prepare the data input and processing layer
+    let settings = JSON.parse(xhr.response);
+    $("#parameters").value = xhr.response;
+
+    // Set up the fractal generator
+    let world = new Fractal(settings);
+    world.forcedRedraw = true;
+    ({
+      numerator: world.numerator,
+      denominator: world.denominator,
+    } = preprocessPolynomial(settings.roots, settings.multiplicities));
+
+    // Track the current down/up state of virtual controller keys
+    let keys = {
+      up: 0,
+      down: 0,
+      left: 0,
+      right: 0,
+      zoomin: 0,
+      zoomout: 0,
+    };
+
+  /// Prepare the fractal visualization layer
     // Create a canvas
     let canvas = document.getElementById("canvas");
 
@@ -151,28 +158,53 @@ $.fetch("parameters.json").then(function(xhr) {
     gl.bufferData(gl.ARRAY_BUFFER, Models.quad, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
+    // Configure our fractal shader
     let shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
       "ITERATIONS": settings.iterations,
       "NUMROOTS": settings.roots.length,
     }));
 
-    ({
-      numerator: world.numerator,
-      denominator: world.denominator,
-    } = preprocessPolynomial(settings.roots, settings.multiplicities));
-
-    world.forcedRedraw = true;
-    requestAnimationFrame(function onAnimationFrame() {
-      requestAnimationFrame(onAnimationFrame);
-
+    // Draw handler
+    function update_canvas() {
       world = update_world(world, keys);
 
       if (world.forcedRedraw) {
         upload_uniforms(gl, shader, world);
         draw_fractal(gl, shader, mesh);
       }
+    };
+
+  /// DEBUG: Allow access to `world` from the debug console
+    window.world = world;
+
+  /// Set up event handlers
+    // Keyboard event handlers
+    const KEYMAP = {
+      "87": "up",
+      "83": "down",
+      "65": "left",
+      "68": "right",
+      "16": "zoomin",
+      "32": "zoomout",
+    };
+    canvas.addEventListener("keydown", function(ev) {
+      if (KEYMAP[ev.keyCode] !== undefined) {
+        keys[KEYMAP[ev.keyCode]] = 1;
+      }
+    });
+    canvas.addEventListener("keyup", function(ev) {
+      if (KEYMAP[ev.keyCode] !== undefined) {
+        keys[KEYMAP[ev.keyCode]] = 0;
+      }
     });
 
+    // Frame event handler
+    requestAnimationFrame(function onAnimationFrame() {
+      requestAnimationFrame(onAnimationFrame);
+      update_canvas();
+    });
+
+    // Reconfiguration handler
     $("#parameters").addEventListener("input", function(ev) {
       let settings;
       try {
@@ -202,30 +234,6 @@ $.fetch("parameters.json").then(function(xhr) {
 
       world.forcedRedraw = true;
       world.settings = settings;
-    });
-
-    canvas.addEventListener("keydown", function(ev) {
-      switch (ev.keyCode) {
-      case 65: keys.left = 1; break;
-      case 68: keys.right = 1; break;
-      case 87: keys.up = 1; break;
-      case 83: keys.down = 1; break;
-      case 16: keys.zoomin = 1; break;
-      case 32: keys.zoomout = 1; break;
-      }
-    });
-    canvas.addEventListener("keyup", function(ev) {
-      switch (ev.keyCode) {
-      case 65: keys.left = 0; break;
-      case 68: keys.right = 0; break;
-      case 87: keys.up = 0; break;
-      case 83: keys.down = 0; break;
-      case 16: keys.zoomin = 0; break;
-      case 32: keys.zoomout = 0; break;
-      }
-    });
-    canvas.addEventListener("click", function(ev) {
-      canvas.focus();
     });
   });
 });
