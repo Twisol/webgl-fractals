@@ -55,28 +55,6 @@ export const Poly = {
 };
 
 
-function getNumerator(roots) {
-  let poly = [[1, 0]];
-  for (let i = 0; i < roots.length; i += 1) {
-    poly = Poly.multiply(poly, [[1, 0], Complex.multiply([-1, 0], roots[i])]);
-  }
-  return poly;
-}
-
-function getDenominator(roots, multiplicities) {
-  let poly = [[0, 0]];
-  for (let i = 0; i < roots.length; i += 1) {
-    let term = [multiplicities[i]];
-    for (let j = 0; j < roots.length; j += 1) {
-      if (j !== i) {
-        term = Poly.multiply(term, [[1, 0], Complex.multiply([-1, 0], roots[j])]);
-      }
-    }
-    poly = Poly.add(poly, term);
-  }
-  return poly;
-}
-
 export function preprocessPolynomial(roots, multiplicities) {
   let numerator = [[1, 0]];
   for (let i = 0; i < roots.length; i += 1) {

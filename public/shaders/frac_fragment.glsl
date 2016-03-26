@@ -68,6 +68,8 @@ void main() {
     // Translate the current point by `rational(p)`
     p -= rational(p);
 
+    // Blend a component of the color of whichever roots
+    // `p` is within `eps` of.
     for (int j = 0; j < NUMROOTS; j += 1) {
       if (dot(p - u_roots[j], p - u_roots[j]) < tolerance) {
         b += u_colors[j];
