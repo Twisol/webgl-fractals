@@ -3,45 +3,31 @@ import * as Shader from "./shader";
 import Models from "./models";
 
 
-function update_settings(settings, keys) {
-  let center = [settings.center[0], settings.center[1]];
-  let zoom = settings.zoom;
+function update_camera(camera, keys) {
+  let {offset: [xoff, yoff], zoom} = camera;
 
   if (keys.up !== keys.down) {
-    center[1] += (keys.up - keys.down)/(30*settings.zoom);
+    yoff += (keys.up - keys.down)/(30*zoom);
   }
   if (keys.right !== keys.left) {
-    center[0] += (keys.right - keys.left)/(30*settings.zoom);
+    xoff += (keys.right - keys.left)/(30*zoom);
   }
   if (keys.zoomin !== keys.zoomout) {
     zoom *= Math.pow(0.990, keys.zoomin - keys.zoomout);
   }
 
-  return {
-    center: center,
-    zoom: zoom,
-    brightness: settings.brightness,
-    root_radius: settings.root_radius,
-
-    roots: settings.roots,
-    numerator: settings.numerator,
-    denominator: settings.denominator,
-    colors: settings.colors,
-
-    iterations: settings.iterations,
-    eps: settings.eps,
-  };
+  return {offset: [xoff, yoff], zoom};
 }
 
-function upload_uniforms(gl, shader, settings) {
+function upload_uniforms(gl, shader, settings, camera) {
   gl.useProgram(shader.program);
 
   gl.uniform2fv(shader.locations["u_roots"], Array.prototype.concat.apply([], settings.roots));
   gl.uniform2fv(shader.locations["u_numerator"], Array.prototype.concat.apply([], settings.numerator));
   gl.uniform2fv(shader.locations["u_denominator"], Array.prototype.concat.apply([], settings.denominator));
   gl.uniform3fv(shader.locations["u_colors"], Array.prototype.concat.apply([], settings.colors));
-  gl.uniform2fv(shader.locations["u_center"], settings.center);
-  gl.uniform1f(shader.locations["u_zoom"], settings.zoom);
+  gl.uniform2fv(shader.locations["u_center"], camera.offset);
+  gl.uniform1f(shader.locations["u_zoom"], camera.zoom);
   gl.uniform1f(shader.locations["u_brightness"], settings.brightness);
   gl.uniform1f(shader.locations["u_root_radius"], settings.root_radius);
   gl.uniform1f(shader.locations["u_eps"], settings.eps);
@@ -51,24 +37,29 @@ function upload_uniforms(gl, shader, settings) {
 };
 
 function draw_fractal(gl, shader, mesh) {
+  const _GL = WebGLRenderingContext;
+
 /// Set up GL state
   // Load shader state
   gl.useProgram(shader.program);
 
   // Load array buffer state
-  gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
+  gl.bindBuffer(_GL.ARRAY_BUFFER, mesh.buffer);
 
   // Modify global vertex array state
-  gl.enableVertexAttribArray(shader.locations["a_vertex"]);
-  gl.vertexAttribPointer(shader.locations["a_vertex"], 2, gl.FLOAT, false, 0, 0);
+  if ("position" in mesh.format) {
+    const attr = mesh.format.position;
+    gl.enableVertexAttribArray(shader.locations["a_vertex"]);
+    gl.vertexAttribPointer(shader.locations["a_vertex"], attr.components, attr.type, false, attr.stride, attr.offset);
+  }
 
 /// Draw using the current pipeline
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.clear(_GL.COLOR_BUFFER_BIT);
+  gl.drawArrays(mesh.primitive_type, 0, mesh.vertex_count);
 
 /// Tear down GL state
   gl.disableVertexAttribArray(shader.locations["a_vertex"]);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.bindBuffer(_GL.ARRAY_BUFFER, null);
   gl.useProgram(null);
 }
 
@@ -123,6 +114,11 @@ function main(settingsJSON, base_shader_schema) {
     };
   })();
 
+  let camera = {
+    offset: [settings.center[0], settings.center[1]],
+    zoom: settings.zoom,
+  };
+
   // Track the current down/up state of virtual controller keys
   const keys = {
     up: 0,
@@ -146,9 +142,14 @@ function main(settingsJSON, base_shader_schema) {
   });
 
   // Load the surface geometry into GPU memory
-  const mesh = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, mesh);
-  gl.bufferData(gl.ARRAY_BUFFER, Models.quad, gl.STATIC_DRAW);
+  const mesh = {
+    primitive_type: Models.quad.primitive_type,
+    format: Models.quad.format,
+    vertex_count: Models.quad.vertex_count,
+    buffer: gl.createBuffer(),
+  };
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, Models.quad.vertices, gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
   // Configure our fractal shader
@@ -162,15 +163,15 @@ function main(settingsJSON, base_shader_schema) {
 
   // Draw handler
   function update_canvas() {
-    const new_settings = update_settings(settings, keys);
-    if (JSON.stringify(settings) !== JSON.stringify(new_settings)) {
+    const new_camera = update_camera(camera, keys);
+    if (JSON.stringify(new_camera) !== JSON.stringify(camera)) {
       forceRedraw = true;
-      settings = new_settings;
+      camera = new_camera;
     }
 
     if (forceRedraw) {
       forceRedraw = false;
-      upload_uniforms(gl, shader, settings);
+      upload_uniforms(gl, shader, settings, camera);
       draw_fractal(gl, shader, mesh);
     }
   };
@@ -244,6 +245,10 @@ function main(settingsJSON, base_shader_schema) {
 
       iterations: inputs.iterations,
       eps: inputs.eps,
+    };
+    camera = {
+      offset: [settings.center[0], settings.center[1]],
+      zoom: settings.zoom,
     };
     forceRedraw = true;
   });
