@@ -1,3 +1,4 @@
+// Represents a complex number `a + bi` as an array `[a, b]`.
 export const Complex = {
   add(a, b) {
     return [a[0] + b[0], a[1] + b[1]];
@@ -8,6 +9,8 @@ export const Complex = {
   },
 };
 
+// Represents a complex polynomial `p0 + p1*x + p2*x^2 + ... + pn*x^n`
+// as an array `[pn, ..., p2, p1, p0]`.
 export const Poly = {
   add(p1, p2) {
     if (p1.length < p2.length) {
@@ -54,7 +57,15 @@ export const Poly = {
   },
 };
 
-
+// We ultimately want to be able to compute `f(x)/f'(x)` on the GPU.
+// If we constrain `f` to be a polynomial-like object, with roots `z_i` and
+// complex multiplicities `m_i`, we can simplify to obtain a complex rational
+// function. This process was informed by material at
+//   http://www.chiark.greenend.org.uk/~sgtatham/newton/
+// While the original formula called for `1/sum([m_i/(x - z_i)])`, that form runs
+// afoul of numerical instability when `x` is close to a `z_i`. Instead, we
+// algebraically manipulate this form to obtain the stable but more complicated
+// `product([x - z_i]) / sum([m_i*product[j!=i](x - z_j)])`.
 export function preprocessPolynomial(roots, multiplicities) {
   let numerator = [[1, 0]];
   for (let i = 0; i < roots.length; i += 1) {
