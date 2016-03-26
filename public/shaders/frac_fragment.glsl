@@ -35,18 +35,21 @@ vec2 compdiv(const vec2 a, const vec2 b) {
   return compmul(a, b*vec2(1, -1)) / dot(b, b);
 }
 
-// Computes z - poly(z)/deriv(z),
-// where poly(x) = prod_{i=1}^{NUMROOTS} u_root[i]^u_multiplicities[i]
-vec2 approximation(const vec2 z) {
-  vec2 num = u_numerator[0];
-  vec2 denom = vec2(0, 0);
-  for (int i = 1; i < NUMROOTS+1; i += 1) {
-    num = compmul(num, z) + u_numerator[i];
-    denom = compmul(denom, z) + u_denominator[i-1];
+// Evaluates the rational function f(z) = u_numerator(z)/u_denominator(z)
+vec2 rational(const vec2 z) {
+  vec2 numerator = vec2(0, 0);
+  for (int i = 0; i < NUMROOTS+1 i += 1) {
+    numerator = compmul(numerator, z) + u_numerator[i];
   }
 
-  return z - compdiv(num, denom);
+  vec2 denominator = vec2(0, 0);
+  for (int i = 0; i < NUMROOTS; i += 1) {
+    denominator = compmul(denominator, z) + u_denominator[i];
+  }
+
+  return compdiv(num, denom);
 }
+
 
 void main() {
   float tolerance = u_eps*u_eps;
@@ -62,7 +65,8 @@ void main() {
 
   vec3 b = vec3(0.0, 0.0, 0.0);
   for (int i = 0; i < ITERATIONS; i += 1) {
-    p = approximation(p);
+    // Translate the current point by `rational(p)`
+    p -= rational(p);
 
     for (int j = 0; j < NUMROOTS; j += 1) {
       if (dot(p - u_roots[j], p - u_roots[j]) < tolerance) {
