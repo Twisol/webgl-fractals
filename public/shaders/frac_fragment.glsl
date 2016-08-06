@@ -38,7 +38,7 @@ vec2 compdiv(const vec2 a, const vec2 b) {
 // Evaluates the rational function f(z) = u_numerator(z)/u_denominator(z)
 vec2 rational(const vec2 z) {
   vec2 numerator = vec2(0, 0);
-  for (int i = 0; i < NUMROOTS+1 i += 1) {
+  for (int i = 0; i < NUMROOTS+1; i += 1) {
     numerator = compmul(numerator, z) + u_numerator[i];
   }
 
