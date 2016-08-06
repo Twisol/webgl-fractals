@@ -47,7 +47,7 @@ vec2 rational(const vec2 z) {
     denominator = compmul(denominator, z) + u_denominator[i];
   }
 
-  return compdiv(num, denom);
+  return compdiv(numerator, denominator);
 }
 
 
