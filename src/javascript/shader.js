@@ -1,13 +1,9 @@
 export function fetch(shader_schema) {
-  return $.fetch(shader_schema.vertex_source_path).then(function(xhr) {
-    let vertex_source = xhr.response;
-
-    return $.fetch(shader_schema.fragment_source_path).then(function(xhr) {
-      let fragment_source = xhr.response;
-
+  return $.fetch(shader_schema.vertex_source_path).then(function(vertex_xhr) {
+    return $.fetch(shader_schema.fragment_source_path).then(function(fragment_xhr) {
       return {
-        vertex_source: vertex_source,
-        fragment_source: fragment_source,
+        vertex_source: vertex_xhr.response,
+        fragment_source: fragment_xhr.response,
 
         signature: shader_schema.signature,
       };

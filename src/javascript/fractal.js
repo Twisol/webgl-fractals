@@ -37,7 +37,7 @@ function upload_uniforms(gl, shader, settings, camera) {
 };
 
 function draw_fractal(gl, shader, mesh) {
-  const _GL = WebGLRenderingContext;
+  const _GL = window.WebGLRenderingContext;
 
 /// Set up GL state
   // Load shader state
