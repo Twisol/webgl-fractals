@@ -18,3 +18,7 @@ html, body {
 
   resize: none;
 }
+
+#catalog {
+  width: 100%;
+}

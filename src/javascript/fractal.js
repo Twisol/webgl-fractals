@@ -254,20 +254,29 @@ function main(settingsJSON, base_shader_schema) {
   });
 }
 
+function setFractal(settings) {
+  let settingsJSON = JSON.stringify(settings, undefined, 2);
+  Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
+    main(settingsJSON, base_shader_schema);
+  });
+}
 
-/*/
+
 $.fetch("catalog.json").then(function(xhr) {
   let catalog = JSON.parse(xhr.response);
-  let settingsJSON = JSON.stringify(catalog["metro"]);
-  Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
-    main(settingsJSON, base_shader_schema);
+  let catalogEl = $("#catalog");
+
+  catalogEl.addEventListener("change", function(ev) {
+    setFractal(catalog[this.value]);
   });
+
+  for (let name in catalog) {
+    let optionEl = document.createElement("option");
+    optionEl.value = name;
+    optionEl.textContent = name;
+    catalogEl.appendChild(optionEl);
+  }
+
+  catalogEl.value = "iridescence";
+  setFractal(catalog["iridescence"]);
 });
-/*/
-$.fetch("parameters.json").then(function(xhr) {
-  let settingsJSON = xhr.response
-  Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
-    main(settingsJSON, base_shader_schema);
-  });
-});
-//*/
