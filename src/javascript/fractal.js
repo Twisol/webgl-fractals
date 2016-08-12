@@ -88,13 +88,9 @@ const FRACTAL_SHADER_SCHEMA = {
   },
 };
 
-function main(settingsJSON, base_shader_schema) {
+function main(inputs, base_shader_schema) {
 /// Prepare the data input and processing layer
-  $("#parameters").value = settingsJSON;
-
   let settings = (function() {
-    const inputs = JSON.parse(settingsJSON);
-
     // Generate a rational function from the roots/multiplicities.
     const {numerator, denominator} = preprocessPolynomial(inputs.roots, inputs.multiplicities);
 
@@ -208,15 +204,7 @@ function main(settingsJSON, base_shader_schema) {
   });
 
   // Reconfiguration handler
-  $("#parameters").addEventListener("input", function(ev) {
-    let inputs;
-    try {
-      inputs = JSON.parse(ev.target.value);
-    } catch (ex) {
-      console.log("Invalid JSON");
-      return;
-    }
-
+  function recomputeSettings(inputs) {
     if (inputs.roots.length != settings.roots.length
     || inputs.iterations != settings.iterations) {
       shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
@@ -251,32 +239,45 @@ function main(settingsJSON, base_shader_schema) {
       zoom: settings.zoom,
     };
     forceRedraw = true;
-  });
-}
+  }
 
-function setFractal(settings) {
-  let settingsJSON = JSON.stringify(settings, undefined, 2);
-  Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
-    main(settingsJSON, base_shader_schema);
+  $("#parameters").addEventListener("input", function(ev) {
+    let inputs;
+    try {
+      inputs = JSON.parse(ev.target.value);
+    } catch (ex) {
+      console.log("Invalid JSON");
+      return;
+    }
+
+    recomputeSettings(inputs);
   });
+
+  return {
+    recomputeSettings: recomputeSettings,
+  };
 }
 
 
 $.fetch("catalog.json").then(function(xhr) {
-  let catalog = JSON.parse(xhr.response);
-  let catalogEl = $("#catalog");
+  Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
+    let catalog = JSON.parse(xhr.response);
+    let catalogEl = $("#catalog");
+    for (let name in catalog) {
+      let optionEl = document.createElement("option");
+      optionEl.value = name;
+      optionEl.textContent = name;
+      catalogEl.appendChild(optionEl);
+    }
 
-  catalogEl.addEventListener("change", function(ev) {
-    setFractal(catalog[this.value]);
+    let controller = main(catalog["iridescence"], base_shader_schema);
+
+    $("#parameters").value = JSON.stringify(catalog["iridescence"], undefined, 2);
+    catalogEl.value = "iridescence";
+
+    catalogEl.addEventListener("change", function(ev) {
+      $("#parameters").value = JSON.stringify(catalog[ev.target.value], undefined, 2);
+      controller.recomputeSettings(catalog[ev.target.value]);
+    });
   });
-
-  for (let name in catalog) {
-    let optionEl = document.createElement("option");
-    optionEl.value = name;
-    optionEl.textContent = name;
-    catalogEl.appendChild(optionEl);
-  }
-
-  catalogEl.value = "iridescence";
-  setFractal(catalog["iridescence"]);
 });
