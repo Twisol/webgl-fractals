@@ -13,7 +13,7 @@ uniform float u_brightness;
 uniform float u_root_radius;
 
 // Point transformation and tolerance
-uniform float u_eps;
+uniform float u_epsilon;
 
 // Polynomial roots
 uniform vec2 u_roots[NUMROOTS];
@@ -52,7 +52,7 @@ vec2 rational(const vec2 z) {
 
 
 void main() {
-  float tolerance = u_eps*u_eps;
+  float tolerance = u_epsilon*u_epsilon;
   vec2 p = v_vertex / u_zoom + u_center;
 
   // Highlight the roots
@@ -69,7 +69,7 @@ void main() {
     p -= rational(p);
 
     // Blend a component of the color of whichever roots
-    // `p` is within `eps` of.
+    // `p` is within `epsilon` of.
     for (int j = 0; j < NUMROOTS; j += 1) {
       if (dot(p - u_roots[j], p - u_roots[j]) < tolerance) {
         b += u_colors[j];

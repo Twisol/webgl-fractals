@@ -30,7 +30,7 @@ function upload_uniforms(gl, shader, settings, camera) {
   gl.uniform1f(shader.locations["u_zoom"], camera.zoom);
   gl.uniform1f(shader.locations["u_brightness"], settings.brightness);
   gl.uniform1f(shader.locations["u_root_radius"], settings.root_radius);
-  gl.uniform1f(shader.locations["u_eps"], settings.eps);
+  gl.uniform1f(shader.locations["u_epsilon"], settings.eps);
   gl.uniform1f(shader.locations["u_aspect"], canvas.width/canvas.height);
 
   gl.useProgram(null);
@@ -77,7 +77,7 @@ const FRACTAL_SHADER_SCHEMA = {
       "u_colors",
       "u_numerator",
       "u_denominator",
-      "u_eps",
+      "u_epsilon",
       "u_center",
       "u_zoom",
       "u_brightness",
