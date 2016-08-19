@@ -18,6 +18,30 @@ function update_camera(camera, keys) {
   return {offset: [xoff, yoff], zoom};
 }
 
+function load_mesh(gl, model) {
+  const mesh = {
+    primitive_type: model.primitive_type,
+    vertex_count: model.vertex_count,
+    attributes: {},
+  };
+
+  for (let attribute_name in model.attributes) {
+    const attribute = model.attributes[attribute_name];
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, attribute.vertices, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    mesh.attributes[attribute_name] = {
+      format: attribute.format,
+      buffer: buffer,
+    };
+  }
+
+  return mesh;
+}
+
 function upload_uniforms(gl, shader, uniforms) {
   gl.useProgram(shader.program);
 
@@ -140,24 +164,7 @@ function main(inputs, base_shader_schema) {
   });
 
   // Load the surface geometry into GPU memory
-  const mesh = {
-    primitive_type: Models["quad"].primitive_type,
-    vertex_count: Models["quad"].vertex_count,
-    attributes: {},
-  };
-  for (let attribute_name in Models["quad"].attributes) {
-    const attribute = Models["quad"].attributes[attribute_name];
-
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, attribute.vertices, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-    mesh.attributes[attribute_name] = {
-      format: attribute.format,
-      buffer: buffer,
-    };
-  }
+  const mesh = load_mesh(gl, Models["quad"]);
 
   // Configure our fractal shader
   let shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {

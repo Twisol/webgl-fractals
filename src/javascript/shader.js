@@ -19,8 +19,8 @@ export function apply_constants(shader_schema, constants) {
   for (let k of shader_schema.signature.constants) {
     if (k in constants) {
       let pattern = new RegExp(`{{${k}}}`, 'g');
-      vertex_source = vertex_source.replace(pattern, `${constants[k]}`);
-      fragment_source = fragment_source.replace(pattern, `${constants[k]}`);
+      vertex_source = vertex_source.replace(pattern, constants[k]);
+      fragment_source = fragment_source.replace(pattern, constants[k]);
     } else {
       remaining_constants.push(k);
     }
@@ -44,7 +44,6 @@ export function compile(gl, shader_schema) {
     }
 
     throw new Error("Shader has undetermined constants");
-    return null;
   }
 
   let vertexShader = gl.createShader(gl.VERTEX_SHADER);
