@@ -2,7 +2,6 @@ import {preprocessPolynomial} from "./newton";
 import * as Shader from "./shader";
 import Models from "./models";
 
-
 function update_camera(camera, keys) {
   let {offset: [xoff, yoff], zoom} = camera;
 
@@ -19,47 +18,50 @@ function update_camera(camera, keys) {
   return {offset: [xoff, yoff], zoom};
 }
 
-function upload_uniforms(gl, shader, settings, camera) {
+function upload_uniforms(gl, shader, uniforms) {
   gl.useProgram(shader.program);
 
-  gl.uniform2fv(shader.locations["u_roots"], Array.prototype.concat.apply([], settings.roots));
-  gl.uniform2fv(shader.locations["u_numerator"], Array.prototype.concat.apply([], settings.numerator));
-  gl.uniform2fv(shader.locations["u_denominator"], Array.prototype.concat.apply([], settings.denominator));
-  gl.uniform3fv(shader.locations["u_colors"], Array.prototype.concat.apply([], settings.colors));
-  gl.uniform2fv(shader.locations["u_center"], camera.offset);
-  gl.uniform1f(shader.locations["u_zoom"], camera.zoom);
-  gl.uniform1f(shader.locations["u_brightness"], settings.brightness);
-  gl.uniform1f(shader.locations["u_root_radius"], settings.root_radius);
-  gl.uniform1f(shader.locations["u_epsilon"], settings.eps);
-  gl.uniform1f(shader.locations["u_aspect"], canvas.width/canvas.height);
+  for (const uniform_name in uniforms) {
+    const {type, location} = shader.uniforms[uniform_name];
+    gl["uniform"+type](location, uniforms[uniform_name]);
+  }
 
   gl.useProgram(null);
 };
 
 function draw_fractal(gl, shader, mesh) {
-  const _GL = window.WebGLRenderingContext;
+/// Clear the canvas
+  gl.clear(gl.COLOR_BUFFER_BIT);
 
 /// Set up GL state
   // Load shader state
   gl.useProgram(shader.program);
 
-  // Load array buffer state
-  gl.bindBuffer(_GL.ARRAY_BUFFER, mesh.buffer);
-
   // Modify global vertex array state
-  if ("position" in mesh.format) {
-    const attr = mesh.format.position;
-    gl.enableVertexAttribArray(shader.locations["a_vertex"]);
-    gl.vertexAttribPointer(shader.locations["a_vertex"], attr.components, attr.type, false, attr.stride, attr.offset);
+  for (const attribute_name in mesh.attributes) {
+    const {
+      buffer,
+      format: {components, type, stride, offset}
+    } = mesh.attributes[attribute_name];
+
+    const {location} = shader.attributes[attribute_name];
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.enableVertexAttribArray(location);
+    gl.vertexAttribPointer(location, components, type, false, stride, offset);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
   }
 
 /// Draw using the current pipeline
-  gl.clear(_GL.COLOR_BUFFER_BIT);
   gl.drawArrays(mesh.primitive_type, 0, mesh.vertex_count);
 
 /// Tear down GL state
-  gl.disableVertexAttribArray(shader.locations["a_vertex"]);
-  gl.bindBuffer(_GL.ARRAY_BUFFER, null);
+  for (const attribute_name in mesh.attributes) {
+    const {location} = shader.attributes[attribute_name];
+
+    gl.disableVertexAttribArray(location);
+  }
+
   gl.useProgram(null);
 }
 
@@ -71,18 +73,18 @@ const FRACTAL_SHADER_SCHEMA = {
   signature: {
     constants: ["ITERATIONS", "NUMROOTS"],
 
-    uniforms: [
-      "u_aspect",
-      "u_roots",
-      "u_colors",
-      "u_numerator",
-      "u_denominator",
-      "u_epsilon",
-      "u_center",
-      "u_zoom",
-      "u_brightness",
-      "u_root_radius",
-    ],
+    uniforms: {
+      "u_aspect":       "1f",
+      "u_roots":        "2fv",
+      "u_colors":       "3fv",
+      "u_numerator":    "2fv",
+      "u_denominator":  "2fv",
+      "u_epsilon":      "1f",
+      "u_center":       "2fv",
+      "u_zoom":         "1f",
+      "u_brightness":   "1f",
+      "u_root_radius":  "1f",
+    },
 
     attributes: ["a_vertex"],
   },
@@ -139,14 +141,23 @@ function main(inputs, base_shader_schema) {
 
   // Load the surface geometry into GPU memory
   const mesh = {
-    primitive_type: Models.quad.primitive_type,
-    format: Models.quad.format,
-    vertex_count: Models.quad.vertex_count,
-    buffer: gl.createBuffer(),
+    primitive_type: Models["quad"].primitive_type,
+    vertex_count: Models["quad"].vertex_count,
+    attributes: {},
   };
-  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, Models.quad.vertices, gl.STATIC_DRAW);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  for (let attribute_name in Models["quad"].attributes) {
+    const attribute = Models["quad"].attributes[attribute_name];
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, attribute.vertices, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    mesh.attributes[attribute_name] = {
+      format: attribute.format,
+      buffer: buffer,
+    };
+  }
 
   // Configure our fractal shader
   let shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
@@ -167,7 +178,18 @@ function main(inputs, base_shader_schema) {
 
     if (forceRedraw) {
       forceRedraw = false;
-      upload_uniforms(gl, shader, settings, camera);
+      upload_uniforms(gl, shader, {
+        "u_roots": Array.prototype.concat.apply([], settings.roots),
+        "u_numerator": Array.prototype.concat.apply([], settings.numerator),
+        "u_denominator": Array.prototype.concat.apply([], settings.denominator),
+        "u_colors": Array.prototype.concat.apply([], settings.colors),
+        "u_center": camera.offset,
+        "u_zoom": camera.zoom,
+        "u_brightness": settings.brightness,
+        "u_root_radius": settings.root_radius,
+        "u_epsilon": settings.eps,
+        "u_aspect": canvas.width/canvas.height,
+      });
       draw_fractal(gl, shader, mesh);
     }
   };

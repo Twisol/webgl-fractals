@@ -72,16 +72,24 @@ export function compile(gl, shader_schema) {
     throw new Error("Unable to link shader program");
   }
 
-  let locations = {};
-  for (let k of shader_schema.signature.uniforms) {
-    locations[k] = gl.getUniformLocation(program, k);
+  let uniforms = {};
+  for (let k in shader_schema.signature.uniforms) {
+    uniforms[k] = {
+      location: gl.getUniformLocation(program, k),
+      type: shader_schema.signature.uniforms[k]
+    };
   }
+
+  let attributes = {};
   for (let k of shader_schema.signature.attributes) {
-    locations[k] = gl.getAttribLocation(program, k);
+    attributes[k] = {
+      location: gl.getAttribLocation(program, k)
+    };
   }
 
   return {
     program: program,
-    locations: locations,
+    uniforms: uniforms,
+    attributes: attributes,
   };
 }
