@@ -288,25 +288,44 @@ function main(inputs, base_shader_schema) {
 }
 
 
-$.fetch("catalog.json").then(function(xhr) {
-  Shader.fetch(FRACTAL_SHADER_SCHEMA).then(function(base_shader_schema) {
-    let catalog = JSON.parse(xhr.response);
-    let catalogEl = $("#catalog");
-    for (let name in catalog) {
-      let optionEl = document.createElement("option");
-      optionEl.value = name;
-      optionEl.textContent = name;
-      catalogEl.appendChild(optionEl);
-    }
+function display_page(catalog, base_shader_schema) {
+  let catalogEl = $("#catalog");
+  for (let name in catalog) {
+    let optionEl = document.createElement("option");
+    optionEl.value = name;
+    optionEl.textContent = name;
+    catalogEl.appendChild(optionEl);
+  }
 
-    let controller = main(catalog["iridescence"], base_shader_schema);
+  let controller = main(catalog["iridescence"], base_shader_schema);
 
-    $("#parameters").value = JSON.stringify(catalog["iridescence"], undefined, 2);
-    catalogEl.value = "iridescence";
+  $("#parameters").value = JSON.stringify(catalog["iridescence"], undefined, 2);
+  catalogEl.value = "iridescence";
 
-    catalogEl.addEventListener("change", function(ev) {
-      $("#parameters").value = JSON.stringify(catalog[ev.target.value], undefined, 2);
-      controller.recomputeSettings(catalog[ev.target.value]);
+  catalogEl.addEventListener("change", function(ev) {
+    $("#parameters").value = JSON.stringify(catalog[ev.target.value], undefined, 2);
+    controller.recomputeSettings(catalog[ev.target.value]);
+  });
+}
+
+
+function load_resources() {
+  const catalog_xhr$ = $.fetch("catalog.json");
+  const base_shader_schema$ = Shader.fetch(FRACTAL_SHADER_SCHEMA);
+
+  return new Promise(function(resolve, reject) {
+    catalog_xhr$.then(function(catalog_xhr) {
+      base_shader_schema$.then(function(base_shader_schema) {
+        resolve({
+          catalog: JSON.parse(catalog_xhr.response),
+          base_shader_schema: base_shader_schema
+        });
+      });
     });
   });
+}
+
+load_resources().then(function(resources) {
+  const {catalog, base_shader_schema} = resources;
+  display_page(catalog, base_shader_schema);
 });
