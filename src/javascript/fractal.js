@@ -314,60 +314,46 @@ function interact_with_user(catalog, default_catalog_name) {
   );
 
   // Camera controls
-  const KEYMAP = {
-    "87": "up",
-    "83": "down",
-    "65": "left",
-    "68": "right",
-    "16": "zoomin",
-    "32": "zoomout",
-  };
+  const keydown$ = Rx.Observable.fromEvent(canvas, "keydown").map(ev => ev.keyCode);
+  const keyup$ = Rx.Observable.fromEvent(canvas, "keyup").map(ev => ev.keyCode);
+  const zoomin$ = Rx.Observable.merge(
+    keydown$.filter(key => key == 16).map(() => 1),
+    keyup$.filter(key => key == 16).map(() => 0)
+  ).startWith(0);
+  const zoomout$ = Rx.Observable.merge(
+    keydown$.filter(key => key == 32).map(() => 1),
+    keyup$.filter(key => key == 32).map(() => 0)
+  ).startWith(0);
+  const up$ = Rx.Observable.merge(
+    keydown$.filter(key => key == 87).map(() => 1),
+    keyup$.filter(key => key == 87).map(() => 0)
+  ).startWith(0);
+  const down$ = Rx.Observable.merge(
+    keydown$.filter(key => key == 83).map(() => 1),
+    keyup$.filter(key => key == 83).map(() => 0)
+  ).startWith(0);
+  const left$ = Rx.Observable.merge(
+    keydown$.filter(key => key == 65).map(() => 1),
+    keyup$.filter(key => key == 65).map(() => 0)
+  ).startWith(0);
+  const right$ = Rx.Observable.merge(
+    keydown$.filter(key => key == 68).map(() => 1),
+    keyup$.filter(key => key == 68).map(() => 0)
+  ).startWith(0);
 
-  const keydown$ = Rx.Observable.fromEvent(canvas, "keydown")
-    .filter(ev => ev.keyCode in KEYMAP)
-    .map(ev => KEYMAP[ev.keyCode]);
-  const keyup$ = Rx.Observable.fromEvent(canvas, "keyup")
-    .filter(ev => ev.keyCode in KEYMAP)
-    .map(ev => KEYMAP[ev.keyCode]);
+  const zoom$ = Rx.Observable
+    .combineLatest(zoomin$, zoomout$)
+    .map(([zoomin, zoomout]) => zoomin - zoomout);
+  const horizontal_pan$ = Rx.Observable
+    .combineLatest(right$, left$)
+    .map(([right, left]) => right - left);
+  const vertical_pan$ = Rx.Observable
+    .combineLatest(up$, down$)
+    .map(([up, down]) => up - down);
 
-  const zoom$ = Rx.Observable.combineLatest(
-    Rx.Observable.merge(
-      keydown$.filter(action => action == "zoomin").map(() => 1),
-      keyup$.filter(action => action == "zoomin").map(() => 0)
-    ).startWith(0),
-    Rx.Observable.merge(
-      keydown$.filter(action => action == "zoomout").map(() => 1),
-      keyup$.filter(action => action == "zoomout").map(() => 0)
-    ).startWith(0)
-  ).map(([zoomin, zoomout]) => zoomin - zoomout);
-
-  const horizontal_pan$ = Rx.Observable.combineLatest(
-    Rx.Observable.merge(
-      keydown$.filter(action => action == "right").map(() => 1),
-      keyup$.filter(action => action == "right").map(() => 0)
-    ).startWith(0),
-    Rx.Observable.merge(
-      keydown$.filter(action => action == "left").map(() => 1),
-      keyup$.filter(action => action == "left").map(() => 0)
-    ).startWith(0)
-  ).map(([right, left]) => right - left);
-
-  const vertical_pan$ = Rx.Observable.combineLatest(
-    Rx.Observable.merge(
-      keydown$.filter(action => action == "up").map(() => 1),
-      keyup$.filter(action => action == "up").map(() => 0)
-    ).startWith(0),
-    Rx.Observable.merge(
-      keydown$.filter(action => action == "down").map(() => 1),
-      keyup$.filter(action => action == "down").map(() => 0)
-    ).startWith(0)
-  ).map(([up, down]) => up - down);
-
-  const camera_velocity$ = Rx.Observable.combineLatest(
-    zoom$,
-    vertical_pan$,
-    horizontal_pan$
-  ).map(([zoom, vertical_pan, horizontal_pan]) => ({zoom, vertical_pan, horizontal_pan}));
+  const camera_velocity$ = Rx.Observable
+    .combineLatest(zoom$, vertical_pan$, horizontal_pan$)
+    .map(([zoom, vertical_pan, horizontal_pan]) => ({zoom, vertical_pan, horizontal_pan}));
 
 
   // Only when updated from the dropdown, replace the parameter text box
