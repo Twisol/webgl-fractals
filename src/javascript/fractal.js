@@ -1,6 +1,7 @@
 import {preprocessPolynomial} from "./newton";
 import * as Shader from "./shader";
 import Models from "./models";
+import Rx from "rx";
 
 function update_camera(camera, keys) {
   let {offset: [xoff, yoff], zoom} = camera;
@@ -270,41 +271,56 @@ function main(inputs, base_shader_schema) {
     forceRedraw = true;
   }
 
-  $("#parameters").addEventListener("input", function(ev) {
-    let inputs;
-    try {
-      inputs = JSON.parse(ev.target.value);
-    } catch (ex) {
-      console.log("Invalid JSON");
-      return;
-    }
-
-    recomputeSettings(inputs);
-  });
-
   return {
     recomputeSettings: recomputeSettings,
   };
 }
 
 
-function display_page(catalog, base_shader_schema) {
-  let catalogEl = $("#catalog");
-  for (let name in catalog) {
-    let optionEl = document.createElement("option");
+function display_page(catalog, base_shader_schema, default_catalog_name) {
+  const controller = main(catalog[default_catalog_name], base_shader_schema);
+
+  const catalogEl = $("#catalog");
+  for (const name in catalog) {
+    const optionEl = document.createElement("option");
     optionEl.value = name;
     optionEl.textContent = name;
     catalogEl.appendChild(optionEl);
   }
+  catalogEl.value = default_catalog_name;
 
-  let controller = main(catalog["iridescence"], base_shader_schema);
 
-  $("#parameters").value = JSON.stringify(catalog["iridescence"], undefined, 2);
-  catalogEl.value = "iridescence";
+  const catalogName$ = Rx.Observable.merge(
+    // Default
+    Rx.Observable.just(default_catalog_name),
 
-  catalogEl.addEventListener("change", function(ev) {
-    $("#parameters").value = JSON.stringify(catalog[ev.target.value], undefined, 2);
-    controller.recomputeSettings(catalog[ev.target.value]);
+    // User provided
+    Rx.Observable.fromEvent(catalogEl, "change").map(ev => ev.target.value)
+  );
+
+  const parameters$ = Rx.Observable.merge(
+    // Changed via dropdown
+    catalogName$.map(name => catalog[name]),
+
+    // Changed via text input
+    Rx.Observable.fromEvent($("#parameters"), "input").concatMap(ev => {
+      try {
+        return Rx.Observable.just(JSON.parse(ev.target.value));
+      } catch (ex) {
+        console.log("Invalid JSON");
+        return Rx.Observable.empty();
+      }
+    })
+  );
+
+  // Whenever the parameters change, re-generate the fractal
+  parameters$.forEach(inputs => {
+    controller.recomputeSettings(inputs);
+  });
+
+  // Only when updated from the dropdown, replace the parameter text box
+  catalogName$.forEach(name => {
+    $("#parameters").value = JSON.stringify(catalog[name], undefined, 2);
   });
 }
 
@@ -327,5 +343,5 @@ function load_resources() {
 
 load_resources().then(function(resources) {
   const {catalog, base_shader_schema} = resources;
-  display_page(catalog, base_shader_schema);
+  display_page(catalog, base_shader_schema, "iridescence");
 });
