@@ -277,9 +277,7 @@ function main(inputs, base_shader_schema) {
 }
 
 
-function display_page(catalog, base_shader_schema, default_catalog_name) {
-  const controller = main(catalog[default_catalog_name], base_shader_schema);
-
+function interact_with_user(catalog, default_catalog_name) {
   const catalogEl = $("#catalog");
   for (const name in catalog) {
     const optionEl = document.createElement("option");
@@ -290,7 +288,7 @@ function display_page(catalog, base_shader_schema, default_catalog_name) {
   catalogEl.value = default_catalog_name;
 
 
-  const catalogName$ = Rx.Observable.merge(
+  const catalog_names$ = Rx.Observable.merge(
     // Default
     Rx.Observable.just(default_catalog_name),
 
@@ -300,7 +298,7 @@ function display_page(catalog, base_shader_schema, default_catalog_name) {
 
   const parameters$ = Rx.Observable.merge(
     // Changed via dropdown
-    catalogName$.map(name => catalog[name]),
+    catalog_names$.map(name => catalog[name]),
 
     // Changed via text input
     Rx.Observable.fromEvent($("#parameters"), "input").concatMap(ev => {
@@ -313,15 +311,15 @@ function display_page(catalog, base_shader_schema, default_catalog_name) {
     })
   );
 
-  // Whenever the parameters change, re-generate the fractal
-  parameters$.forEach(inputs => {
-    controller.recomputeSettings(inputs);
-  });
-
   // Only when updated from the dropdown, replace the parameter text box
-  catalogName$.forEach(name => {
+  catalog_names$.forEach(name => {
     $("#parameters").value = JSON.stringify(catalog[name], undefined, 2);
   });
+
+  return {
+    parameters: parameters$,
+    catalog_names: catalog_names$,
+  };
 }
 
 
@@ -329,9 +327,9 @@ function load_resources() {
   const catalog_xhr$ = $.fetch("catalog.json");
   const base_shader_schema$ = Shader.fetch(FRACTAL_SHADER_SCHEMA);
 
-  return new Promise(function(resolve, reject) {
-    catalog_xhr$.then(function(catalog_xhr) {
-      base_shader_schema$.then(function(base_shader_schema) {
+  return new Promise((resolve, reject) => {
+    catalog_xhr$.then(catalog_xhr => {
+      base_shader_schema$.then(base_shader_schema => {
         resolve({
           catalog: JSON.parse(catalog_xhr.response),
           base_shader_schema: base_shader_schema
@@ -341,7 +339,19 @@ function load_resources() {
   });
 }
 
-load_resources().then(function(resources) {
+load_resources().then(resources => {
+  const DEFAULT_CATALOG_NAME = "iridescence";
+
   const {catalog, base_shader_schema} = resources;
-  display_page(catalog, base_shader_schema, "iridescence");
+  const controller = main(catalog[DEFAULT_CATALOG_NAME], base_shader_schema);
+
+  const {
+    parameters: parameters$,
+    catalog_names: catalog_names$,
+  } = interact_with_user(catalog, DEFAULT_CATALOG_NAME);
+
+  // Whenever the parameters change, re-generate the fractal
+  parameters$.forEach(inputs => {
+    controller.recomputeSettings(inputs);
+  });
 });
