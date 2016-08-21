@@ -278,14 +278,16 @@ function main(inputs, base_shader_schema) {
 
 
 function interact_with_user(catalog, default_catalog_name) {
-  const catalogEl = $("#catalog");
+  const canvas_el = $("#canvas");
+
+  const catalog_el = $("#catalog");
   for (const name in catalog) {
-    const optionEl = document.createElement("option");
-    optionEl.value = name;
-    optionEl.textContent = name;
-    catalogEl.appendChild(optionEl);
+    const option_el = document.createElement("option");
+    option_el.value = name;
+    option_el.textContent = name;
+    catalog_el.appendChild(option_el);
   }
-  catalogEl.value = default_catalog_name;
+  catalog_el.value = default_catalog_name;
 
 
   const catalog_names$ = Rx.Observable.merge(
@@ -293,7 +295,7 @@ function interact_with_user(catalog, default_catalog_name) {
     Rx.Observable.just(default_catalog_name),
 
     // User provided
-    Rx.Observable.fromEvent(catalogEl, "change").map(ev => ev.target.value)
+    Rx.Observable.fromEvent(catalog_el, "change").map(ev => ev.target.value)
   );
 
   const parameters$ = Rx.Observable.merge(
@@ -311,6 +313,63 @@ function interact_with_user(catalog, default_catalog_name) {
     })
   );
 
+  // Camera controls
+  const KEYMAP = {
+    "87": "up",
+    "83": "down",
+    "65": "left",
+    "68": "right",
+    "16": "zoomin",
+    "32": "zoomout",
+  };
+
+  const keydown$ = Rx.Observable.fromEvent(canvas, "keydown")
+    .filter(ev => ev.keyCode in KEYMAP)
+    .map(ev => KEYMAP[ev.keyCode]);
+  const keyup$ = Rx.Observable.fromEvent(canvas, "keyup")
+    .filter(ev => ev.keyCode in KEYMAP)
+    .map(ev => KEYMAP[ev.keyCode]);
+
+  const zoom$ = Rx.Observable.combineLatest(
+    Rx.Observable.merge(
+      keydown$.filter(action => action == "zoomin").map(() => 1),
+      keyup$.filter(action => action == "zoomin").map(() => 0)
+    ).startWith(0),
+    Rx.Observable.merge(
+      keydown$.filter(action => action == "zoomout").map(() => 1),
+      keyup$.filter(action => action == "zoomout").map(() => 0)
+    ).startWith(0)
+  ).map(([zoomin, zoomout]) => zoomin - zoomout);
+
+  const horizontal_pan$ = Rx.Observable.combineLatest(
+    Rx.Observable.merge(
+      keydown$.filter(action => action == "right").map(() => 1),
+      keyup$.filter(action => action == "right").map(() => 0)
+    ).startWith(0),
+    Rx.Observable.merge(
+      keydown$.filter(action => action == "left").map(() => 1),
+      keyup$.filter(action => action == "left").map(() => 0)
+    ).startWith(0)
+  ).map(([right, left]) => right - left);
+
+  const vertical_pan$ = Rx.Observable.combineLatest(
+    Rx.Observable.merge(
+      keydown$.filter(action => action == "up").map(() => 1),
+      keyup$.filter(action => action == "up").map(() => 0)
+    ).startWith(0),
+    Rx.Observable.merge(
+      keydown$.filter(action => action == "down").map(() => 1),
+      keyup$.filter(action => action == "down").map(() => 0)
+    ).startWith(0)
+  ).map(([up, down]) => up - down);
+
+  const camera_velocity$ = Rx.Observable.combineLatest(
+    zoom$,
+    vertical_pan$,
+    horizontal_pan$
+  ).map(([zoom, vertical_pan, horizontal_pan]) => ({zoom, vertical_pan, horizontal_pan}));
+
+
   // Only when updated from the dropdown, replace the parameter text box
   catalog_names$.forEach(name => {
     $("#parameters").value = JSON.stringify(catalog[name], undefined, 2);
@@ -319,6 +378,7 @@ function interact_with_user(catalog, default_catalog_name) {
   return {
     parameters: parameters$,
     catalog_names: catalog_names$,
+    camera_velocity: camera_velocity$,
   };
 }
 
@@ -348,10 +408,41 @@ load_resources().then(resources => {
   const {
     parameters: parameters$,
     catalog_names: catalog_names$,
+    camera_velocity: camera_velocity$,
   } = interact_with_user(catalog, DEFAULT_CATALOG_NAME);
 
+  // Produce a camera object from the parameters
+  const camera$ = parameters$.map(params => ({
+    offset: [params.center[0], params.center[1]],
+    zoom: params.zoom,
+  })).flatMapLatest(camera => {
+    return Rx.Observable.combineLatest(
+      camera_velocity$,
+      Rx.Observable.interval(50)
+    ).map(([x, _]) => x)
+    .scan((camera, {zoom, vertical_pan, horizontal_pan}) => {
+      const yoff = vertical_pan/(30*camera.zoom);
+      const xoff = horizontal_pan/(30*camera.zoom);
+      const zoom_multiplier = Math.pow(0.990, zoom);
+
+      return {
+        offset: [camera.offset[0]+xoff, camera.offset[1]+yoff],
+        zoom: camera.zoom*zoom_multiplier,
+      };
+    }, camera);
+  });
+
+  // Compute the polynomial from the parameters
+  const polynomial$ = parameters$.distinctUntilChanged(undefined, (a, b) => (
+    JSON.stringify(a.roots) === JSON.stringify(b.roots)
+    && JSON.stringify(a.multiplicities) === JSON.stringify(b.multiplicities)
+  )).map(params => preprocessPolynomial(params.roots, params.multiplicities));
+
+  camera$.forEach(x => console.log(JSON.stringify(x)));
+
+
   // Whenever the parameters change, re-generate the fractal
-  parameters$.forEach(inputs => {
-    controller.recomputeSettings(inputs);
+  parameters$.forEach(params => {
+    controller.recomputeSettings(params);
   });
 });
