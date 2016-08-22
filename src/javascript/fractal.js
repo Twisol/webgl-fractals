@@ -407,12 +407,12 @@ load_resources().then(resources => {
       Rx.Observable.interval(50)
     ).map(([x, _]) => x)
     .scan((camera, {zoom, vertical_pan, horizontal_pan}) => {
-      const yoff = vertical_pan/(30*camera.zoom);
-      const xoff = horizontal_pan/(30*camera.zoom);
+      const y_offset = vertical_pan/(30*camera.zoom);
+      const x_offset = horizontal_pan/(30*camera.zoom);
       const zoom_multiplier = Math.pow(0.990, zoom);
 
       return {
-        offset: [camera.offset[0]+xoff, camera.offset[1]+yoff],
+        offset: [camera.offset[0]+x_offset, camera.offset[1]+y_offset],
         zoom: camera.zoom*zoom_multiplier,
       };
     }, camera);
