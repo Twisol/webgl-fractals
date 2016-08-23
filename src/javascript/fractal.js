@@ -115,44 +115,7 @@ const FRACTAL_SHADER_SCHEMA = {
   },
 };
 
-function main(inputs, base_shader_schema) {
-/// Prepare the data input and processing layer
-  let settings = (function() {
-    // Generate a rational function from the roots/multiplicities.
-    const {numerator, denominator} = preprocessPolynomial(inputs.roots, inputs.multiplicities);
-
-    return {
-      center: inputs.center,
-      zoom: inputs.zoom,
-      brightness: inputs.brightness,
-      root_radius: inputs.root_radius,
-
-      roots: inputs.roots,
-      colors: inputs.colors,
-      numerator: numerator,
-      denominator: denominator,
-
-      iterations: inputs.iterations,
-      eps: inputs.eps,
-    };
-  })();
-
-  let camera = {
-    offset: [settings.center[0], settings.center[1]],
-    zoom: settings.zoom,
-  };
-
-  // Track the current down/up state of virtual controller keys
-  const keys = {
-    up: 0,
-    down: 0,
-    left: 0,
-    right: 0,
-    zoomin: 0,
-    zoomout: 0,
-  };
-
-/// Prepare the fractal visualization layer
+function initialize_gl() {
   // Create a canvas
   const canvas = document.getElementById("canvas");
 
@@ -167,112 +130,10 @@ function main(inputs, base_shader_schema) {
   // Load the surface geometry into GPU memory
   const mesh = load_mesh(gl, Models["quad"]);
 
-  // Configure our fractal shader
-  let shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
-    "ITERATIONS": settings.iterations,
-    "NUMROOTS": settings.roots.length,
-  }));
-
-  // Flag to force redrawing
-  let forceRedraw = false;
-
-  // Draw handler
-  function update_canvas() {
-    const new_camera = update_camera(camera, keys);
-    if (JSON.stringify(new_camera) !== JSON.stringify(camera)) {
-      forceRedraw = true;
-      camera = new_camera;
-    }
-
-    if (forceRedraw) {
-      forceRedraw = false;
-      upload_uniforms(gl, shader, {
-        "u_roots": Array.prototype.concat.apply([], settings.roots),
-        "u_numerator": Array.prototype.concat.apply([], settings.numerator),
-        "u_denominator": Array.prototype.concat.apply([], settings.denominator),
-        "u_colors": Array.prototype.concat.apply([], settings.colors),
-        "u_center": camera.offset,
-        "u_zoom": camera.zoom,
-        "u_brightness": settings.brightness,
-        "u_root_radius": settings.root_radius,
-        "u_epsilon": settings.eps,
-        "u_aspect": canvas.width/canvas.height,
-      });
-      draw_fractal(gl, shader, mesh);
-    }
-  };
-
-/// DEBUG: Allow access to the current settings from the debug console
-  window.currentSettings = () => settings;
-
-/// Set up event handlers
-  // Keyboard event handlers
-  const KEYMAP = {
-    "87": "up",
-    "83": "down",
-    "65": "left",
-    "68": "right",
-    "16": "zoomin",
-    "32": "zoomout",
-  };
-  canvas.addEventListener("keydown", function(ev) {
-    if (KEYMAP[ev.keyCode] !== undefined) {
-      keys[KEYMAP[ev.keyCode]] = 1;
-    }
-  });
-  canvas.addEventListener("keyup", function(ev) {
-    if (KEYMAP[ev.keyCode] !== undefined) {
-      keys[KEYMAP[ev.keyCode]] = 0;
-    }
-  });
-
-  // Frame event handler
-  forceRedraw = true;
-  requestAnimationFrame(function onAnimationFrame() {
-    requestAnimationFrame(onAnimationFrame);
-    update_canvas();
-  });
-
-  // Reconfiguration handler
-  function recomputeSettings(inputs) {
-    if (inputs.roots.length != settings.roots.length
-    || inputs.iterations != settings.iterations) {
-      shader = Shader.compile(gl, Shader.apply_constants(base_shader_schema, {
-        "ITERATIONS": inputs.iterations,
-        "NUMROOTS": inputs.roots.length,
-      }));
-    }
-
-    let numerator = settings.numerator;
-    let denominator = settings.denominator;
-    if (JSON.stringify(inputs.roots) !== JSON.stringify(settings.roots)
-    ||  JSON.stringify(inputs.multiplicities) !== JSON.stringify(settings.multiplicities)) {
-      ({numerator, denominator} = preprocessPolynomial(inputs.roots, inputs.multiplicities));
-    }
-
-    settings = {
-      center: inputs.center,
-      zoom: inputs.zoom,
-      brightness: inputs.brightness,
-      root_radius: inputs.root_radius,
-
-      roots: inputs.roots,
-      colors: inputs.colors,
-      numerator: numerator,
-      denominator: denominator,
-
-      iterations: inputs.iterations,
-      eps: inputs.eps,
-    };
-    camera = {
-      offset: [settings.center[0], settings.center[1]],
-      zoom: settings.zoom,
-    };
-    forceRedraw = true;
-  }
-
   return {
-    recomputeSettings: recomputeSettings,
+    gl: gl,
+    canvas: canvas,
+    mesh: mesh,
   };
 }
 
@@ -314,8 +175,8 @@ function interact_with_user(catalog, default_catalog_name) {
   );
 
   // Camera controls
-  const keydown$ = Rx.Observable.fromEvent(canvas, "keydown").map(ev => ev.keyCode);
-  const keyup$ = Rx.Observable.fromEvent(canvas, "keyup").map(ev => ev.keyCode);
+  const keydown$ = Rx.Observable.fromEvent(canvas, "keydown").pluck("keyCode");
+  const keyup$ = Rx.Observable.fromEvent(canvas, "keyup").pluck("keyCode");
   const zoomin$ = Rx.Observable.merge(
     keydown$.filter(key => key == 16).map(() => 1),
     keyup$.filter(key => key == 16).map(() => 0)
@@ -343,13 +204,16 @@ function interact_with_user(catalog, default_catalog_name) {
 
   const zoom$ = Rx.Observable
     .combineLatest(zoomin$, zoomout$)
-    .map(([zoomin, zoomout]) => zoomin - zoomout);
+    .map(([zoomin, zoomout]) => zoomin - zoomout)
+    .distinctUntilChanged();
   const horizontal_pan$ = Rx.Observable
     .combineLatest(right$, left$)
-    .map(([right, left]) => right - left);
+    .map(([right, left]) => right - left)
+    .distinctUntilChanged();
   const vertical_pan$ = Rx.Observable
     .combineLatest(up$, down$)
-    .map(([up, down]) => up - down);
+    .map(([up, down]) => up - down)
+    .distinctUntilChanged();
 
   const camera_velocity$ = Rx.Observable
     .combineLatest(zoom$, vertical_pan$, horizontal_pan$)
@@ -363,7 +227,6 @@ function interact_with_user(catalog, default_catalog_name) {
 
   return {
     parameters: parameters$,
-    catalog_names: catalog_names$,
     camera_velocity: camera_velocity$,
   };
 }
@@ -385,50 +248,104 @@ function load_resources() {
   });
 }
 
+// Like `sample`, but repeats the previous value if no new activity has occurred.
+// TODO: Make this properly propogate errors
+Rx.Observable.prototype.poll = function(interval, default_value) {
+  let last_value = default_value;
+  this.forEach(x => {last_value = x;});
+
+  return Rx.Observable.interval(interval).map(_ => last_value);
+};
+
+
 load_resources().then(resources => {
-  const DEFAULT_CATALOG_NAME = "iridescence";
-
   const {catalog, base_shader_schema} = resources;
-  const controller = main(catalog[DEFAULT_CATALOG_NAME], base_shader_schema);
+  const controller = initialize_gl();
 
+  const DEFAULT_CATALOG_NAME = "iridescence";
   const {
     parameters: parameters$,
-    catalog_names: catalog_names$,
     camera_velocity: camera_velocity$,
   } = interact_with_user(catalog, DEFAULT_CATALOG_NAME);
+
+  // Produce a shader object from the parameters
+  const shader$ = parameters$.distinctUntilChanged(undefined, (a, b) => {
+    return a.roots.length === b.roots.length && a.iterations === b.iterations
+  }).map(params => {
+    const shader_schema = Shader.apply_constants(base_shader_schema, {
+      "ITERATIONS": params.iterations,
+      "NUMROOTS": params.roots.length,
+    });
+    return Shader.compile(controller.gl, shader_schema);
+  });
 
   // Produce a camera object from the parameters
   const camera$ = parameters$.map(params => ({
     offset: [params.center[0], params.center[1]],
     zoom: params.zoom,
-  })).flatMapLatest(camera => {
-    return Rx.Observable.combineLatest(
-      camera_velocity$,
-      Rx.Observable.interval(50)
-    ).map(([x, _]) => x)
-    .scan((camera, {zoom, vertical_pan, horizontal_pan}) => {
-      const y_offset = vertical_pan/(30*camera.zoom);
-      const x_offset = horizontal_pan/(30*camera.zoom);
-      const zoom_multiplier = Math.pow(0.990, zoom);
+  })).distinctUntilChanged(undefined, (a, b) => {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }).flatMapLatest(camera => {
+    return camera_velocity$.poll(20)
+      .scan((camera, {zoom, vertical_pan, horizontal_pan}) => {
+        const y_offset = vertical_pan/(30*camera.zoom);
+        const x_offset = horizontal_pan/(30*camera.zoom);
+        const zoom_multiplier = Math.pow(0.990, zoom);
 
-      return {
-        offset: [camera.offset[0]+x_offset, camera.offset[1]+y_offset],
-        zoom: camera.zoom*zoom_multiplier,
-      };
-    }, camera);
+        return {
+          offset: [camera.offset[0]+x_offset, camera.offset[1]+y_offset],
+          zoom: camera.zoom*zoom_multiplier,
+        };
+      }, camera)
+      .startWith(camera)
+      .distinctUntilChanged(undefined, (a, b) => {
+        return JSON.stringify(a) === JSON.stringify(b);
+      });
   });
 
   // Compute the polynomial from the parameters
-  const polynomial$ = parameters$.distinctUntilChanged(undefined, (a, b) => (
-    JSON.stringify(a.roots) === JSON.stringify(b.roots)
-    && JSON.stringify(a.multiplicities) === JSON.stringify(b.multiplicities)
-  )).map(params => preprocessPolynomial(params.roots, params.multiplicities));
-
-  camera$.forEach(x => console.log(JSON.stringify(x)));
-
-
-  // Whenever the parameters change, re-generate the fractal
-  parameters$.forEach(params => {
-    controller.recomputeSettings(params);
+  const polynomial$ = parameters$.distinctUntilChanged(undefined, (a, b) => {
+    return (
+        JSON.stringify(a.roots) === JSON.stringify(b.roots)
+      && JSON.stringify(a.multiplicities) === JSON.stringify(b.multiplicities)
+      && JSON.stringify(a.colors) === JSON.stringify(b.colors)
+    );
+  }).map(params => {
+    const {numerator, denominator} = preprocessPolynomial(params.roots, params.multiplicities)
+    return {
+      numerator,
+      denominator,
+      roots: params.roots,
+      colors: params.colors,
+    };
   });
+
+  let renderArgs = null;
+  function onAnimationFrame() {
+    const [params, shader, polynomial, camera] = renderArgs;
+    renderArgs = null;
+
+    upload_uniforms(controller.gl, shader, {
+      "u_roots": Array.prototype.concat.apply([], polynomial.roots),
+      "u_numerator": Array.prototype.concat.apply([], polynomial.numerator),
+      "u_denominator": Array.prototype.concat.apply([], polynomial.denominator),
+      "u_colors": Array.prototype.concat.apply([], polynomial.colors),
+      "u_center": camera.offset,
+      "u_zoom": camera.zoom,
+      "u_brightness": params.brightness,
+      "u_root_radius": params.root_radius,
+      "u_epsilon": params.eps,
+      "u_aspect": controller.canvas.width/controller.canvas.height,
+    });
+    draw_fractal(controller.gl, shader, controller.mesh);
+  }
+
+  Rx.Observable
+    .combineLatest(parameters$, shader$, polynomial$, camera$)
+    .forEach(([params, shader, polynomial, camera]) => {
+      if (renderArgs === null) {
+        requestAnimationFrame(onAnimationFrame);
+      }
+      renderArgs = [params, shader, polynomial, camera];
+    });
 });
