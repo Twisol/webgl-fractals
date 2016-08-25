@@ -6,7 +6,7 @@ import Rx from "rx";
 
 Rx.Observable.prototype.sampleLast = function(sampler$, default_value) {
   if (!Rx.Observable.isObservable(sampler$)) {
-    sampler$ = Rx.Observable.interval(sampler);
+    sampler$ = Rx.Observable.interval(sampler$);
   }
 
   return this
