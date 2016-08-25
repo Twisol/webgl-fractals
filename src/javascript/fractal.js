@@ -3,21 +3,21 @@ import * as Shader from "./shader";
 import Models from "./models";
 import Rx from "rx";
 
-function update_camera(camera, keys) {
-  let {offset: [xoff, yoff], zoom} = camera;
 
-  if (keys.up !== keys.down) {
-    yoff += (keys.up - keys.down)/(30*zoom);
-  }
-  if (keys.right !== keys.left) {
-    xoff += (keys.right - keys.left)/(30*zoom);
-  }
-  if (keys.zoomin !== keys.zoomout) {
-    zoom *= Math.pow(0.990, keys.zoomin - keys.zoomout);
+Rx.Observable.prototype.sampleLast = function(sampler$, default_value) {
+  if (!Rx.Observable.isObservable(sample)) {
+    sampler$ = Rx.Observable.interval(sampler);
   }
 
-  return {offset: [xoff, yoff], zoom};
-}
+  return this
+    .map(x =>
+      Rx.Observable
+        .combineLatest(Rx.Observable.just(x), sampler$)
+        .map(([x, _]) => x)
+    )
+    .switch();
+};
+
 
 function load_mesh(gl, model) {
   const mesh = {
@@ -53,6 +53,7 @@ function upload_uniforms(gl, shader, uniforms) {
 
   gl.useProgram(null);
 };
+
 
 function draw_fractal(gl, shader, mesh) {
 /// Clear the canvas
@@ -248,15 +249,6 @@ function load_resources() {
   });
 }
 
-// Like `sample`, but repeats the previous value if no new activity has occurred.
-// TODO: Make this properly propogate errors
-Rx.Observable.prototype.poll = function(interval, default_value) {
-  let last_value = default_value;
-  this.forEach(x => {last_value = x;});
-
-  return Rx.Observable.interval(interval).map(_ => last_value);
-};
-
 
 load_resources().then(resources => {
   const {catalog, base_shader_schema} = resources;
@@ -286,7 +278,9 @@ load_resources().then(resources => {
   })).distinctUntilChanged(undefined, (a, b) => {
     return JSON.stringify(a) === JSON.stringify(b);
   }).flatMapLatest(camera => {
-    return camera_velocity$.poll(20)
+    const sampler$ = Rx.Observable.interval(20);
+    return camera_velocity$
+      .sampleLast(20)
       .scan((camera, {zoom, vertical_pan, horizontal_pan}) => {
         const y_offset = vertical_pan/(30*camera.zoom);
         const x_offset = horizontal_pan/(30*camera.zoom);
@@ -308,17 +302,8 @@ load_resources().then(resources => {
     return (
         JSON.stringify(a.roots) === JSON.stringify(b.roots)
       && JSON.stringify(a.multiplicities) === JSON.stringify(b.multiplicities)
-      && JSON.stringify(a.colors) === JSON.stringify(b.colors)
     );
-  }).map(params => {
-    const {numerator, denominator} = preprocessPolynomial(params.roots, params.multiplicities)
-    return {
-      numerator,
-      denominator,
-      roots: params.roots,
-      colors: params.colors,
-    };
-  });
+  }).map(params => preprocessPolynomial(params.roots, params.multiplicities));
 
   let renderArgs = null;
   function onAnimationFrame() {
@@ -326,10 +311,10 @@ load_resources().then(resources => {
     renderArgs = null;
 
     upload_uniforms(controller.gl, shader, {
-      "u_roots": Array.prototype.concat.apply([], polynomial.roots),
+      "u_roots": Array.prototype.concat.apply([], params.roots),
       "u_numerator": Array.prototype.concat.apply([], polynomial.numerator),
       "u_denominator": Array.prototype.concat.apply([], polynomial.denominator),
-      "u_colors": Array.prototype.concat.apply([], polynomial.colors),
+      "u_colors": Array.prototype.concat.apply([], params.colors),
       "u_center": camera.offset,
       "u_zoom": camera.zoom,
       "u_brightness": params.brightness,
