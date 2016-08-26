@@ -3,22 +3,6 @@ import * as Shader from "./shader";
 import Models from "./models";
 import Rx from "rx";
 
-
-Rx.Observable.prototype.sampleLast = function(sampler$, default_value) {
-  if (!Rx.Observable.isObservable(sampler$)) {
-    sampler$ = Rx.Observable.interval(sampler$);
-  }
-
-  return this
-    .map(x =>
-      Rx.Observable
-        .combineLatest(Rx.Observable.just(x), sampler$)
-        .map(([x, _]) => x)
-    )
-    .switch();
-};
-
-
 function load_mesh(gl, model) {
   const mesh = {
     primitive_type: model.primitive_type,
@@ -278,9 +262,10 @@ load_resources().then(resources => {
   })).distinctUntilChanged(undefined, (a, b) => {
     return JSON.stringify(a) === JSON.stringify(b);
   }).flatMapLatest(camera => {
-    const sampler$ = Rx.Observable.interval(20);
+    const sampleRate$ = Rx.Observable.interval(20);
     return camera_velocity$
-      .sampleLast(20)
+      .map(x => sampleRate$.map(_ => x))
+      .switch()
       .scan((camera, {zoom, vertical_pan, horizontal_pan}) => {
         const y_offset = vertical_pan/(30*camera.zoom);
         const x_offset = horizontal_pan/(30*camera.zoom);
@@ -305,32 +290,30 @@ load_resources().then(resources => {
     );
   }).map(params => preprocessPolynomial(params.roots, params.multiplicities));
 
-  let renderArgs = null;
-  function onAnimationFrame() {
-    const [params, shader, polynomial, camera] = renderArgs;
-    renderArgs = null;
 
-    upload_uniforms(controller.gl, shader, {
-      "u_roots": Array.prototype.concat.apply([], params.roots),
-      "u_numerator": Array.prototype.concat.apply([], polynomial.numerator),
-      "u_denominator": Array.prototype.concat.apply([], polynomial.denominator),
-      "u_colors": Array.prototype.concat.apply([], params.colors),
-      "u_center": camera.offset,
-      "u_zoom": camera.zoom,
-      "u_brightness": params.brightness,
-      "u_root_radius": params.root_radius,
-      "u_epsilon": params.eps,
-      "u_aspect": controller.canvas.width/controller.canvas.height,
-    });
-    draw_fractal(controller.gl, shader, controller.mesh);
-  }
-
+  const render_ready$ = new Rx.BehaviorSubject(true);
   Rx.Observable
     .combineLatest(parameters$, shader$, polynomial$, camera$)
+    .map(args => render_ready$.filter(x => x === true).map(_ => args).take(1))
+    .switch()
     .forEach(([params, shader, polynomial, camera]) => {
-      if (renderArgs === null) {
-        requestAnimationFrame(onAnimationFrame);
-      }
-      renderArgs = [params, shader, polynomial, camera];
+      render_ready$.onNext(false);
+      requestAnimationFrame(function() {
+        render_ready$.onNext(true);
+
+        upload_uniforms(controller.gl, shader, {
+          "u_roots": Array.prototype.concat.apply([], params.roots),
+          "u_numerator": Array.prototype.concat.apply([], polynomial.numerator),
+          "u_denominator": Array.prototype.concat.apply([], polynomial.denominator),
+          "u_colors": Array.prototype.concat.apply([], params.colors),
+          "u_center": camera.offset,
+          "u_zoom": camera.zoom,
+          "u_brightness": params.brightness,
+          "u_root_radius": params.root_radius,
+          "u_epsilon": params.eps,
+          "u_aspect": controller.canvas.width/controller.canvas.height,
+        });
+        draw_fractal(controller.gl, shader, controller.mesh);
+      });
     });
 });
