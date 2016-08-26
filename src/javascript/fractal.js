@@ -294,6 +294,7 @@ load_resources().then(resources => {
   const render_ready$ = new Rx.BehaviorSubject(true);
   Rx.Observable
     .combineLatest(parameters$, shader$, polynomial$, camera$)
+    .debounce(0)  // This is a code smell
     .map(args => render_ready$.filter(x => x === true).map(_ => args).take(1))
     .switch()
     .forEach(([params, shader, polynomial, camera]) => {
